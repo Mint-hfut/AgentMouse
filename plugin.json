@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "agentmouse",
+  "version": "0.5.0",
+  "description": "Background computer use for AI agents on Windows, with an independent pointer, MCP tools and Agent Skills.",
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "AgentMouse",
+        "shortDescription": "后台操作电脑，Agent 指针与用户鼠标解耦"
+      }
+    }
+  }
+}

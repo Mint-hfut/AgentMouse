@@ -1,0 +1,25 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>APCOMPAT</title>
+<style>
+body{margin:0;background:#f4f6fa;font:16px system-ui;color:#243146}h1{font-size:18px;margin:18px 30px}
+#click{position:absolute;left:32px;top:62px;width:180px;height:65px;background:#ed6c02;color:white;border:0;font-size:18px;border-radius:5px}
+#scroll{position:absolute;left:32px;top:157px;width:220px;height:210px;background:#2979ff;color:white;overflow-y:auto;touch-action:pan-y}
+#scroll div{height:38px;padding:6px;box-sizing:border-box}
+#handle{position:absolute;left:322px;top:167px;width:90px;height:70px;background:#8e24aa;color:white;touch-action:none;user-select:none;display:grid;place-items:center}
+#target{position:absolute;left:470px;top:210px;width:130px;height:90px;background:#d5e9df;border:2px dashed #53816c;pointer-events:none}
+#state{position:absolute;left:30px;top:400px;white-space:pre-wrap;font-size:14px}
+</style><h1>AgentMouse — 本地兼容性测试页</h1><button id="click">点击 / 右键计数</button>
+<div id="scroll"></div><div id="target"></div><div id="handle">触摸拖动</div><pre id="state"></pre>
+<script>
+const id=new URLSearchParams(location.search).get('id')||'test';
+const state={c:0,r:0,s:0,d:0};
+function update(){document.title='APCOMPAT-'+id+'|'+Object.entries(state).map(([k,v])=>k+'='+v).join('|');document.querySelector('#state').textContent=JSON.stringify(state,null,2);}
+document.querySelector('#click').onclick=()=>{state.c++;update()};
+document.querySelector('#click').oncontextmenu=e=>{e.preventDefault();state.r++;update()};
+const pane=document.querySelector('#scroll');for(let i=1;i<=80;i++)pane.appendChild(Object.assign(document.createElement('div'),{textContent:'测试列表 '+i}));
+pane.onscroll=()=>{state.s=Math.round(pane.scrollTop);update()};
+const handle=document.querySelector('#handle');let start=null;
+handle.onpointerdown=e=>{start={x:e.clientX,y:e.clientY,left:handle.offsetLeft,top:handle.offsetTop};handle.setPointerCapture(e.pointerId);};
+handle.onpointermove=e=>{if(start){handle.style.left=start.left+e.clientX-start.x+'px';handle.style.top=start.top+e.clientY-start.y+'px';}};
+handle.onpointerup=e=>{if(start){state.d=Math.round(Math.hypot(e.clientX-start.x,e.clientY-start.y));start=null;update();}};
+handle.onpointercancel=()=>{start=null;update()};update();
+</script></html>

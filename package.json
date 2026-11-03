@@ -1,0 +1,72 @@
+{
+  "name": "agentmouse",
+  "version": "0.5.0",
+  "private": true,
+  "type": "module",
+  "description": "Background computer use for AI agents with an independent pointer, MCP server, Agent Skills, and multi-agent-host installers.",
+  "bin": {
+    "agentmouse": "./agentmouse.mjs"
+  },
+  "files": [
+    "mcp-server.mjs",
+    "agentmouse.mjs",
+    "install.cmd",
+    "install.mjs",
+    "scripts/install-lib.mjs",
+    "plugin.json",
+    "mcp.json",
+    ".mcp.json",
+    ".claude-plugin/",
+    ".codex-plugin/",
+    ".zcode-plugin/",
+    "skills/",
+    "commands/",
+    "adapters/",
+    "assets/",
+    "dist/AgentMouse.exe",
+    "dist/AgentMouse.Cli.exe",
+    "README.zh.md",
+    "README.md",
+    "docs/"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node mcp-server.mjs",
+    "build": "node scripts/build-native.mjs",
+    "test": "node test-mcp.mjs && node test-plugin.mjs && node test-install.mjs && node test-sdk.mjs",
+    "test:state": "node scripts/test-native.mjs",
+    "test:sdk": "node test-sdk.mjs"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Mint-hfut/AgentMouse.git"
+  },
+  "homepage": "https://github.com/Mint-hfut/AgentMouse",
+  "bugs": {
+    "url": "https://github.com/Mint-hfut/AgentMouse/issues"
+  },
+  "keywords": [
+    "computer-use",
+    "mcp",
+    "mcp-server",
+    "agent-skills",
+    "desktop-automation",
+    "windows",
+    "claude-code",
+    "codex",
+    "zcode",
+    "workbuddy",
+    "dsh"
+  ],
+  "dependencies": {
+    "smol-toml": "1.9.1",
+    "yaml": "2.9.1"
+  },
+  "bundleDependencies": ["smol-toml", "yaml"]
+}
