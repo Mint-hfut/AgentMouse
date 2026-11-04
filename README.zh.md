@@ -8,7 +8,7 @@
 
 网页任务使用 **Browser Bridge**：取得真实标签页画面，按图像坐标发送鼠标按下、移动、释放；沿用当前 Chrome 和登录状态，不依赖网页 DOM 选择器、脚本点击或逐网站接口。桌面软件另有通用 Windows 采集和窗口消息通道。
 
-**当前为测试版。** 已完成真实桌面验收：Chrome 全程被前台 ZCode 窗口遮挡，10 项本地操作及画面更新检查全部通过，包括滑块、拼图式拖动、顺序点选与中断释放；未检测到抢前台、窗口越过前台或无人工输入时真实鼠标移动。[桌面测试记录](docs/test-results/desktop-2026-11-04.json)。不能把它宣传成“所有软件、所有验证码都保证通过”。
+**当前为测试版。** beta.3 新增进程/窗口层级/控件识别与旧帧防重试，专项真实窗口回归通过。beta.2 的历史浏览器桌面验收：Chrome 全程被前台 ZCode 窗口遮挡，10 项本地操作及画面更新检查全部通过，包括滑块、拼图式拖动、顺序点选与中断释放；未检测到抢前台、窗口越过前台或无人工输入时真实鼠标移动。[桌面测试记录](docs/test-results/desktop-2026-11-04.json)。不能把它宣传成“所有软件、所有验证码都保证通过”。
 
 ## 一键安装到智能体
 
@@ -61,7 +61,9 @@ node agentmouse.mjs browser-stop
 |---|---|
 | `pointer_open` | 打开本地控制器，新实例默认暂停 |
 | `pointer_status` | 查看控制器能力、配对和浏览器连接状态 |
-| `pointer_list_windows` | 原生窗口以及已连接的 `browser:` 标签页 |
+| `pointer_list_windows` | 窗口身份、可见性、坐标、前后台、层级及浏览器标签页 |
+| `pointer_list_apps` | 按名称查询已运行进程，包括隐藏、托盘中的应用 |
+| `pointer_inspect_window` | 只读获取指定窗口的控件名称、类型及坐标 |
 | `pointer_observe` | 桌面截图、真实后台窗口表面或浏览器视口画面 |
 | `pointer_move` | 默认仅移动独立箭头；带浏览器观察编号时移动/悬停页面虚拟指针 |
 | `pointer_click` | 左右键；`clickCount=2` 双击，或 `holdMs` 长按 |
@@ -69,7 +71,11 @@ node agentmouse.mjs browser-stop
 | `pointer_scroll` | 浏览器后台滚轮；原生遮挡窗口改用截图中的滚动条点击 |
 | `pointer_pause` | 停止、释放按键和采集资源、隐藏箭头 |
 
-没有长期绑定某个目标。`capture="desktop"` 按可见屏幕落点路由，原生 `windowId` 只裁剪屏幕；`capture="window"` 则针对本次观察的窗口句柄或 `browser:` 标签页。下一次可观察并操作其他目标。
+没有长期绑定某个目标。每次点击、拖动、滚动都必须明确提供目标 `windowId` 和对应的观察编号；目标不符直接拒绝。有窗口编号时默认采集该窗口的真实画面，不会把遮挡它的前台画面裁剪后当成后台画面。桌面总览之后的动作同样需要明确目标，下一次可重新观察其他窗口。
+
+启动应用前先用 `pointer_list_apps` 检查进程；没看到窗口不代表程序没运行。隐藏、最小化窗口可以发现，但不能直接截图或点击，也不会擅自恢复或再次启动。借鉴 Windows-MCP 的语义观察方式，新增原生 .NET UIAutomation 控件查询；没有引入 Python 或其前台鼠标、键盘操作。部分自绘应用只能读到标题栏。
+
+原生窗口操作后，如果截图时间戳没有前进，会返回 `inputAllowed=false` 并拦截后续点击，报 `unverified_frame`。应停下来检查控件和兼容性，不能不断重试。即使有新帧，也必须确认业务结果。
 
 **以返回的坐标空间为准：** 原生图像用屏幕物理像素；浏览器图像用视口 CSS 像素。两者都返回原点和缩放：
 
@@ -94,7 +100,7 @@ Chrome 在部分鼠标按下处理中会主动置前并激活窗口；仅仅不�
 
 ## 配置、备份与卸载
 
-运行目录默认 `%LOCALAPPDATA%\AgentMouse\0.6.0-beta.2`，会解析 Windows 打包应用重定向后的物理路径。浏览器配对目录 `~/.agentmouse/browser` 使用每用户密钥和仅监听本机的认证服务，密钥及私人浏览器资料不进仓库。
+运行目录默认 `%LOCALAPPDATA%\AgentMouse\0.6.0-beta.3`，会解析 Windows 打包应用重定向后的物理路径。浏览器配对目录 `~/.agentmouse/browser` 使用每用户密钥和仅监听本机的认证服务，密钥及私人浏览器资料不进仓库。
 
 安装保留其他配置并备份到运行目录 `backups/`。MCP 模式配置：Claude `~/.claude.json`、Codex `~/.codex/config.toml`、ZCode `~/.zcode/cli/config.json`、WorkBuddy `~/.workbuddy/mcp.json`、DSH `~/.dsh/profiles/<profile>/cordis.patch.yml`。原生升级只迁移 AgentMouse 自己的市场来源；原生命令失败明确报告可能完成的部分，仅 MCP 设置写入支持回滚。
 

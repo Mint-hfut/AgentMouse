@@ -7,16 +7,19 @@ import { existsSync } from 'node:fs';
 const root = dirname(fileURLToPath(import.meta.url));
 const integer = { type: 'integer', minimum: -100000, maximum: 100000 };
 const observation = { type: 'string', description: 'Fresh observationId returned by pointer_observe. Single use, valid for 15 seconds.' };
+const windowAddress = { type: 'string', description: 'Exact intended windowId from pointer_list_windows; must match the observed target. Never substitute the foreground app.' };
 const pathPoint = { type: 'object', properties: { x: integer, y: integer }, required: ['x', 'y'], additionalProperties: false };
 const tools = [
   ['open', 'Open the local pointer app if needed, without requesting foreground activation. New instances start paused; an existing instance keeps its state. The user enables whole-desktop input once in its window; this tool cannot arm input.', {}, []],
   ['status', 'Read arming state, backend and compatibility limits.', {}, []],
-  ['list_windows', 'List visible, non-minimized windows.', {}, []],
-  ['observe', 'Observe the desktop, or set capture=window with windowId to capture and address an occluded background window without activating it. This window observation routes its next click/scroll by HWND, ignoring foreground occlusion. Default capture=desktop keeps screen-position routing; windowId then only crops the screenshot. Coordinates remain physical screen pixels: screenX=screenshot.x+imageX*scaleX, screenY=screenshot.y+imageY*scaleY. Never raise a background window as a fallback.', { screenshot: { type: 'boolean', default: true }, windowId: { type: 'string', description: 'Window ID from pointer_list_windows.' }, capture: { type: 'string', enum: ['desktop', 'window'], default: 'desktop' } }, []],
-  ['move', 'Without observationId, move only the Agent overlay. With a browser observationId, move/hover the browser virtual pointer. Neither moves the system mouse. Native window hover is unsupported.', { x: integer, y: integer, observationId: observation }, ['x', 'y']],
-  ['click', 'Click using a fresh observation; capture=window addresses the covered HWND. Background mode supports clickCount=2 for double-click or holdMs for a long press (not both). No foreground activation request or real cursor movement. Reobserve and verify; app compatibility is not guaranteed.', { observationId: observation, x: integer, y: integer, button: { type: 'string', enum: ['left', 'right'], default: 'left' }, clickCount: { type: 'integer', minimum: 1, maximum: 2, default: 1 }, holdMs: { type: 'integer', minimum: 0, maximum: 2000, default: 0 } }, ['observationId', 'x', 'y']],
-  ['drag', 'Background window-message drag inside one window: press, move along the optional intermediate path, then release. Uses physical screen pixels and a fresh observation; does not move the real pointer. Releases on cancellation. No cross-window system drag-and-drop. Touch mode remains experimental, limited to 2 seconds and no waypoints; never use it as a covered-window fallback.', { observationId: observation, x: integer, y: integer, toX: integer, toY: integer, durationMs: { type: 'integer', minimum: 100, maximum: 5000, default: 400 }, path: { type: 'array', items: pathPoint, maxItems: 128, description: 'Optional intermediate physical screen points between x/y and toX/toY.' } }, ['observationId', 'x', 'y', 'toX', 'toY']],
-  ['scroll', 'Wheel at visible desktop screen coordinates. Negative delta scrolls down, positive up; 120 is one notch. Background window observations reject wheels because apps may reroute them using the foreground hit-test. For covered windows use pointer_click on scrollbars/page buttons shown in the background capture. Touch mode is experimental and is not a background fallback.', { observationId: observation, x: integer, y: integer, delta: { type: 'integer', minimum: -1200, maximum: 1200 } }, ['observationId', 'x', 'y', 'delta']],
+  ['list_windows', 'Read window inventory, including minimized/hidden app windows: HWND, PID, owner, class, physical bounds, foreground, front-to-back zOrder and overlapping windows above. A running tray app may have no listed window; check pointer_list_apps before launching anything.', {}, []],
+  ['list_apps', 'Find running app processes by name/title, even when minimized, hidden or in the tray. Check before launching/relaunching. WeChat/Weixin/微信 aliases are supported. Read-only; does not start or activate apps.', { query: { type: 'string' } }, ['query']],
+  ['inspect_window', 'Read the named native window accessibility tree (control names, roles and bounds) and window layers. Bounded read-only UIAutomation in an isolated process; never focuses, invokes or types. Some custom apps expose little/no tree. These nodes cannot authorize a mouse action; observe a real image before input.', { windowId: windowAddress }, ['windowId']],
+  ['observe', 'Observe a real background window with windowId (defaults to capture=window), or the whole visible desktop without a windowId. Returns target identity/layers and inputAllowed. Native coordinates are physical screen pixels; browser coordinates follow coordinateSpace. Reobserve after input. If inputAllowed=false or the native frame repeats after input, stop: do not click again or switch to the foreground app. Never raise a background window as a fallback.', { screenshot: { type: 'boolean', default: true }, windowId: { type: 'string', description: 'Window ID from pointer_list_windows.' }, capture: { type: 'string', enum: ['desktop', 'window'], default: 'desktop' } }, []],
+  ['move', 'Without observationId, move only the Agent overlay. With a browser observationId and matching windowId, move/hover the browser virtual pointer. Neither moves the system mouse. Native window hover is unsupported.', { x: integer, y: integer, observationId: observation, windowId: windowAddress }, ['x', 'y']],
+  ['click', 'Click using a fresh observation; capture=window addresses the covered HWND. Background mode supports clickCount=2 for double-click or holdMs for a long press (not both). No foreground activation request or real cursor movement. Reobserve and verify; app compatibility is not guaranteed.', { windowId: windowAddress, observationId: observation, x: integer, y: integer, button: { type: 'string', enum: ['left', 'right'], default: 'left' }, clickCount: { type: 'integer', minimum: 1, maximum: 2, default: 1 }, holdMs: { type: 'integer', minimum: 0, maximum: 2000, default: 0 } }, ['windowId', 'observationId', 'x', 'y']],
+  ['drag', 'Background window-message drag inside one window: press, move along the optional intermediate path, then release. Uses physical screen pixels and a fresh observation; does not move the real pointer. Releases on cancellation. No cross-window system drag-and-drop. Touch mode remains experimental, limited to 2 seconds and no waypoints; never use it as a covered-window fallback.', { windowId: windowAddress, observationId: observation, x: integer, y: integer, toX: integer, toY: integer, durationMs: { type: 'integer', minimum: 100, maximum: 5000, default: 400 }, path: { type: 'array', items: pathPoint, maxItems: 128, description: 'Optional intermediate physical screen points between x/y and toX/toY.' } }, ['windowId', 'observationId', 'x', 'y', 'toX', 'toY']],
+  ['scroll', 'Wheel at visible desktop screen coordinates. Negative delta scrolls down, positive up; 120 is one notch. Background window observations reject wheels because apps may reroute them using the foreground hit-test. For covered windows use pointer_click on scrollbars/page buttons shown in the background capture. Touch mode is experimental and is not a background fallback.', { windowId: windowAddress, observationId: observation, x: integer, y: integer, delta: { type: 'integer', minimum: -1200, maximum: 1200 } }, ['windowId', 'observationId', 'x', 'y', 'delta']],
   ['pause', 'Immediately request input pause. Cannot be used to enable input.', {}, []],
 ].map(([method, description, properties, required]) => ({
   name: `pointer_${method}`, description,
@@ -32,6 +35,7 @@ function validArgument(schema, value) {
 
 export function createHandler(call) {
   let initialized = false;
+  const observations = new Map();
   return async function handle(request) {
     const id = request?.id ?? null;
     const error = (code, message) => ({ jsonrpc: '2.0', id, error: { code, message } });
@@ -45,7 +49,7 @@ export function createHandler(call) {
       const requested = request.params?.protocolVersion;
       if (typeof requested !== 'string') return error(-32602, 'Missing protocolVersion');
       initialized = true;
-      return reply({ protocolVersion: versions.includes(requested) ? requested : '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'agentmouse', version: '0.6.0-beta.2' } });
+      return reply({ protocolVersion: versions.includes(requested) ? requested : '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'agentmouse', version: '0.6.0-beta.3' } });
     }
     if (!initialized) return error(-32000, 'Initialize first');
     if (request.method === 'ping') return reply({});
@@ -53,10 +57,17 @@ export function createHandler(call) {
     if (request.method !== 'tools/call') return error(-32601, 'Method not found');
     const tool = tools.find(tool => tool.name === request.params?.name);
     if (!tool) return error(-32602, 'Unknown tool');
-    const args = request.params.arguments ?? {};
+    let args = request.params.arguments ?? {};
     if (!args || Array.isArray(args) || typeof args !== 'object') return error(-32602, 'arguments must be an object');
     if (!validArgument(tool.inputSchema, args)) return error(-32602, 'Invalid arguments: check required fields, types, coordinate ranges and path length.');
     try {
+      if (tool.name === 'pointer_observe') args = { ...args, capture: args.capture ?? (args.windowId ? 'window' : 'desktop') };
+      if (['pointer_click','pointer_drag','pointer_scroll'].includes(tool.name)) {
+        const observed = observations.get(args.observationId);
+        if (observed?.windowId && observed.windowId !== args.windowId) return reply({ isError: true, content: [{ type: 'text', text: JSON.stringify({ code: 'wrong_target', message: 'The intended windowId differs from the observed window. No input was sent.' }) }] });
+        if (observed?.inputAllowed === false) return reply({ isError: true, content: [{ type: 'text', text: JSON.stringify({ code: 'unverified_frame', message: 'No new target frame after previous input. Stop and inspect; do not retry or click the foreground app.' }) }] });
+      }
+      if (tool.name === 'pointer_observe') observations.clear();
       if (tool.name === 'pointer_drag' || (tool.name === 'pointer_click' && (args.clickCount > 1 || args.holdMs > 0))) {
         const controller = await call({ method: 'status' });
         if (!controller.ok) return reply({ isError: true, content: [{ type: 'text', text: JSON.stringify(controller.error) }] });
@@ -65,11 +76,13 @@ export function createHandler(call) {
       if (tool.name === 'pointer_observe' && args.capture === 'window') {
         const controller = await call({ method: 'status' });
         if (!controller.ok) return reply({ isError: true, content: [{ type: 'text', text: JSON.stringify(controller.error) }] });
+        if (!args.windowId?.startsWith('browser:') && (controller.result?.windowIdentityGuard !== true || controller.result?.postActionFrameGuard !== true)) return reply({ isError: true, content: [{ type: 'text', text: JSON.stringify({ code: 'upgrade_required', message: 'Close the older AgentMouse controller and open beta.3 or newer for window identity/frozen-frame guards.' }) }] });
         if (controller.result?.backgroundWindowCapture !== true) return reply({ isError: true, content: [{ type: 'text', text: JSON.stringify({ code: 'upgrade_required', message: 'The running controller does not support real background capture. Close the old AgentMouse controller and reopen the updated version; no desktop-crop fallback was used.' }) }] });
       }
       const response = await call({ method: tool.name.slice('pointer_'.length), ...args });
       if (!response.ok) return reply({ isError: true, content: [{ type: 'text', text: JSON.stringify(response.error) }] });
       const value = response.result;
+      if (tool.name === 'pointer_observe' && value?.observationId) observations.set(value.observationId, { windowId: value.window?.windowId || args.windowId, inputAllowed: value.inputAllowed });
       const screenshot = value?.screenshot;
       if (tool.name === 'pointer_observe' && args.capture === 'window' && (value?.scope !== 'window' || !['Windows.Graphics.Capture', 'Chrome.Debugger'].includes(screenshot?.captureMethod) || !screenshot?.data)) return reply({ isError: true, content: [{ type: 'text', text: JSON.stringify({ code: 'background_capture_missing', message: 'A real background image was required; no screen-crop or image-free fallback is accepted.' }) }] });
       if (!screenshot) return reply({ content: [{ type: 'text', text: JSON.stringify(value) }] });
@@ -89,7 +102,7 @@ export async function callApp(request, pipe) {
   await nativeReady;
   if (request.method === 'open') { if (pipe) throw new Error('Opening a GUI is not supported by an isolated fixture transport.'); return openApp(); }
   return new Promise((resolve, reject) => {
-    execFile(join(root, 'dist', 'AgentMouse.Cli.exe'), [...(pipe ? ['--pipe', pipe] : []), '--call', JSON.stringify(request)], { windowsHide: true, timeout: 15000, maxBuffer: 32 * 1024 * 1024 }, (error, stdout) => {
+    execFile(join(root, 'dist', 'AgentMouse.Cli.exe'), [...(pipe ? ['--pipe', pipe] : []), ['list_windows','list_apps','inspect_window'].includes(request.method) ? '--desktop-query' : '--call', JSON.stringify(request)], { windowsHide: true, timeout: 15000, maxBuffer: 32 * 1024 * 1024 }, (error, stdout) => {
       try { resolve(JSON.parse(stdout.trim())); } catch { reject(new Error(error?.message || 'Invalid app response')); }
     });
   });

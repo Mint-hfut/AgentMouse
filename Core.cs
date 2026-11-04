@@ -39,8 +39,22 @@ internal sealed class WindowItem {
     internal IntPtr Handle;
     internal uint Pid;
     internal string Name,ProcessName;
+    internal int ZOrder;
     public override string ToString(){return Name+"  ·  "+ProcessName;}
-    internal object Export(){return new {windowId=Handle.ToInt64().ToString(),title=Name,process=ProcessName};}
+    internal object Export(){
+        Native.Rect r;Native.GetWindowRect(Handle,out r);int cloaked;bool hidden=Native.DwmGetWindowAttribute(Handle,14,out cloaked,4)==0&&cloaked!=0;
+        bool visible=Native.IsWindowVisible(Handle),minimized=Native.IsIconic(Handle);
+        var covering=new List<string>();
+        if(visible&&!minimized&&!hidden){
+            IntPtr above=Native.GetWindow(Handle,3);
+            for(int i=0;above!=IntPtr.Zero&&i<1024;i++,above=Native.GetWindow(above,3)){
+                Native.Rect b;int c;long style=Native.GetWindowLongPtr(above,-20).ToInt64();
+                if(!Native.IsWindowVisible(above)||Native.IsIconic(above)||(style&0x80020)==0x80020||(Native.DwmGetWindowAttribute(above,14,out c,4)==0&&c!=0))continue;
+                if(Native.GetWindowRect(above,out b)&&b.Right>r.Left&&b.Left<r.Right&&b.Bottom>r.Top&&b.Top<r.Bottom)covering.Add(above.ToInt64().ToString());
+            }
+        }
+        return new {windowId=Handle.ToInt64().ToString(),title=Name,process=ProcessName,pid=Pid,className=Native.Class(Handle),ownerWindowId=Native.GetWindow(Handle,4).ToInt64().ToString(),zOrder=ZOrder,zOrderDirection="front-to-back",foreground=Native.GetForegroundWindow()==Handle,visible=visible,minimized=minimized,cloaked=hidden,canCapture=visible&&!minimized&&!hidden,bounds=new{x=r.Left,y=r.Top,width=r.Width,height=r.Height},overlappingWindowsAbove=covering,occlusionAssessment="bounding-rectangle overlap; transparent/shaped windows may differ"};
+    }
 }
 internal sealed class Observation {
     internal string Token;
@@ -48,6 +62,14 @@ internal sealed class Observation {
     internal long At;
     internal List<ObservedWindow> Windows;
     internal ObservedWindow Target;
+    internal long FrameTimestamp;
+}
+internal sealed class CaptureImage {
+    public string mimeType,data,captureMethod;
+    public int x,y,width,height,sourceWidth,sourceHeight;
+    public double scaleX,scaleY;
+    public long frameTimestamp100ns;
+    public bool frameChanged;
 }
 internal sealed class ObservedWindow {
     internal IntPtr Handle;
@@ -123,6 +145,7 @@ internal sealed class Engine {
     private readonly object sync=new object();
     private readonly object operation=new object();
     private Observation observation;
+    private readonly Dictionary<IntPtr,Tuple<uint,long>> actionFrames=new Dictionary<IntPtr,Tuple<uint,long>>();
     private Task<object> windowCapture;
     internal volatile bool Armed,Stopped,PointerVisible=true;
     internal volatile bool MessageButtonHeld;
@@ -140,17 +163,18 @@ internal sealed class Engine {
         var items=new List<WindowItem>();
         Native.EnumWindows(delegate(IntPtr w,IntPtr unused){
             uint pid;Native.GetWindowThreadProcessId(w,out pid);
-            if(w==exclude||pid==(uint)Process.GetCurrentProcess().Id||!Native.IsWindowVisible(w)||Native.IsIconic(w))return true;
-            string title=Native.Title(w);if(title.Length==0)return true;
-            Native.Rect r;if(!Native.GetWindowRect(w,out r)||r.Width<20||r.Height<20)return true;
+            if(w==exclude)return true;
+            if((Native.GetWindowLongPtr(w,-20).ToInt64()&0x80020)==0x80020)return true;
+            string title=Native.Title(w);if(title.Length==0&&!Native.IsWindowVisible(w))return true;
+            Native.Rect r;if(!Native.GetWindowRect(w,out r)||(!Native.IsIconic(w)&&(r.Width<20||r.Height<20)))return true;
             string process="未知程序";try{process=Process.GetProcessById((int)pid).ProcessName;}catch(ArgumentException){}
-            items.Add(new WindowItem{Handle=w,Pid=pid,Name=title,ProcessName=process});return true;
+            items.Add(new WindowItem{Handle=w,Pid=pid,Name=title,ProcessName=process,ZOrder=items.Count});return true;
         },IntPtr.Zero);return items;
     }
     internal object Status(){
         Native.Point real;bool available=Native.GetCursorPos(out real);Native.Rect bounds;object shown=null;
         if(OverlayWindow!=IntPtr.Zero&&Native.GetWindowRect(OverlayWindow,out bounds))shown=new{x=bounds.Left,y=bounds.Top,width=bounds.Width,height=bounds.Height};
-        return new{controllerVersion="0.6.0-beta.2",backgroundWindowCapture=true,windowMessageGestures=true,foregroundWindowId=Native.GetForegroundWindow().ToInt64().ToString(),windowZOrder=CaptureWindows().ConvertAll<string>(w=>w.Handle.ToInt64().ToString()),humanInputSequence=Human.Sequence,backgroundButtonHeld=MessageButtonHeld,armed=Armed,mode=Mode,scope="desktop",pointer=new{x=X,y=Y,visible=ShowPointer},
+        return new{controllerVersion="0.6.0-beta.3",backgroundWindowCapture=true,windowIdentityGuard=true,postActionFrameGuard=true,windowMessageGestures=true,foregroundWindowId=Native.GetForegroundWindow().ToInt64().ToString(),windowZOrder=CaptureWindows().ConvertAll<string>(w=>w.Handle.ToInt64().ToString()),humanInputSequence=Human.Sequence,backgroundButtonHeld=MessageButtonHeld,armed=Armed,mode=Mode,scope="desktop",pointer=new{x=X,y=Y,visible=ShowPointer},
         systemPointer=new{x=real.X,y=real.Y,available=available},overlayBounds=shown,message=Message,pauseShortcut=PauseShortcut,
         limitations=new[]{"后台消息点击和拖动的兼容性取决于目标程序；触摸可能影响真实指针和焦点。","不支持独立键盘、跨窗口系统拖放和独立悬停；后台滚轮需改用滚动条点击。","当前同一时刻仅支持一个 Agent 控制会话。","没有 SendInput 或真实鼠标瞬移兜底。"}};}
     internal object Dispatch(Dictionary<string,object> request){
@@ -186,6 +210,7 @@ internal sealed class Engine {
     private object Observe(bool screenshot,string windowId,string capture="desktop"){
         lock(sync){observation=null;}
         if(capture!="desktop"&&capture!="window")throw new Fault("invalid_argument","capture 必须为 desktop 或 window。");
+        if(windowId!=""&&capture=="desktop")throw new Fault("invalid_argument","提供 windowId 时必须使用 capture=window，不能把前台屏幕裁剪误认为后台画面。");
         if(capture=="window"&&windowId=="")throw new Fault("invalid_argument","后台窗口采集需要 windowId；这只是本次观察的地址，不是长期绑定。");
         if(capture=="window"&&!screenshot)throw new Fault("invalid_argument","后台窗口操作必须先取得真实后台截图，不能跳过画面采集。");
         var desktop=DesktopBounds();Rectangle region=new Rectangle(desktop.Left,desktop.Top,desktop.Width,desktop.Height);object window=null;
@@ -195,7 +220,7 @@ internal sealed class Engine {
             IntPtr handle=new IntPtr(id);
             if(!Native.IsWindow(handle)||!Native.IsWindowVisible(handle)||Native.IsIconic(handle))throw new Fault("window_missing","要查看的窗口已关闭、不可见或最小化。");
             var r=Bounds(handle);region=Rectangle.Intersect(region,new Rectangle(r.Left,r.Top,r.Width,r.Height));
-            window=new{windowId=id.ToString(),title=Native.Title(handle)};
+            var listed=Windows(Owner).Find(w=>w.Handle==handle);if(listed==null)throw new Fault("window_missing","目标窗口不在当前窗口清单内，请重新列出窗口。");window=listed.Export();
             if(capture=="window"){
                 if(Native.GetAncestor(handle,2)!=handle)throw new Fault("invalid_argument","windowId 必须来自可见顶层窗口列表。");
                 uint pid;Native.GetWindowThreadProcessId(handle,out pid);target=new ObservedWindow{Handle=handle,Pid=pid,Bounds=r};
@@ -228,12 +253,13 @@ internal sealed class Engine {
             }
         }
         if(target!=null)ValidateTarget(target);
-        var o=new Observation{Token=Guid.NewGuid().ToString("N"),Bounds=desktop,At=InputTracker.Now,Windows=CaptureWindows(),Target=target};
+        var captured=picture as CaptureImage;
+        var o=new Observation{Token=Guid.NewGuid().ToString("N"),Bounds=desktop,At=InputTracker.Now,Windows=CaptureWindows(),Target=target,FrameTimestamp=captured==null?0:captured.frameTimestamp100ns};
         if(target!=null&&(Native.GetForegroundWindow()!=captureForeground||(coveredBefore&&Above(target.Handle,captureForeground)))){
             Pause("后台画面采集期间前台窗口或层级发生变化，已暂停。");throw new Fault("capture_interference","采集期间焦点或层级发生变化，没有把本次画面当成无干扰操作。");
         }
         lock(sync){observation=o;}
-        return new{scope=target==null?"desktop":"window",capture=capture,observationId=o.Token,validForMs=15000,window=window,bounds=new{x=desktop.Left,y=desktop.Top,width=desktop.Width,height=desktop.Height},screenshot=picture,
+        return new{scope=target==null?"desktop":"window",capture=capture,observationId=o.Token,validForMs=15000,window=window,inputAllowed=FreshAfterAction(o),foregroundWindowId=Native.GetForegroundWindow().ToInt64().ToString(),bounds=new{x=desktop.Left,y=desktop.Top,width=desktop.Width,height=desktop.Height},screenshot=picture,
             note=target==null?"桌面落点路由。windowId 仅裁剪屏幕截图。":"本次观察按窗口句柄采集和操作，允许被遮挡；不切到前台。x/y 仍为屏幕物理像素，请按截图原点和 scaleX/scaleY 换算。"};
     }
     private Observation Validate(Dictionary<string,object> a){
@@ -243,6 +269,11 @@ internal sealed class Engine {
         if(!SameBounds(DesktopBounds(),o.Bounds))throw new Fault("window_changed","显示器布局已改变，请重新观察。");
         return o;
     }
+    private bool FreshAfterAction(Observation o){
+        Tuple<uint,long> previous;
+        return o.Target==null||!actionFrames.TryGetValue(o.Target.Handle,out previous)||FrameAdvanced(o.Target.Pid,o.FrameTimestamp,previous);
+    }
+    internal static bool FrameAdvanced(uint pid,long timestamp,Tuple<uint,long> previous){return previous.Item1!=pid||timestamp>previous.Item2;}
     private static Native.Point ReadPoint(Dictionary<string,object> a,string x,string y){
         var p=new Native.Point(Json.Number(a,x,-100000,100000),Json.Number(a,y,-100000,100000));
         bool inside=false;foreach(Screen s in Screen.AllScreens)if(s.Bounds.Contains(p.X,p.Y)){inside=true;break;}
@@ -364,14 +395,16 @@ internal sealed class Engine {
         int duration=drag?Json.Number(a,"durationMs",100,mode=="touch"?2000:5000,400):40;
         var path=drag?GesturePath(a,from,to):new List<Native.Point>{from,to};
         var o=Validate(a);
+        if(!FreshAfterAction(o))throw new Fault("unverified_frame","上次操作后，目标仍只返回旧画面。已阻止重复点击；请检查控件树或等待新帧，不得改点前台窗口或重新启动应用。");
         if(o.Target!=null&&mode!="background")throw new Fault("unsupported","被遮挡窗口仅支持后台消息通道；不会使用触摸或置前窗口兜底。");
         if(o.Target!=null&&scroll)throw new Fault("unsupported","后台窗口不发送可能按前台落点重定向的滚轮消息。请根据后台截图，使用 pointer_click 点击滚动条或翻页按钮。");
         var initialTarget=Hit(o,from);foreach(var point in path)if(mode=="background"&&Hit(o,point).Handle!=initialTarget.Handle)throw new Fault("unsupported","后台拖动仅支持同一窗口内部的手势，不执行跨窗口系统拖放。");
         WaitForIdle(generation);
         o=Validate(a);var target=Hit(o,from);Hit(o,to);
+        string expected=Json.Text(a,"windowId",target.Handle.ToInt64().ToString());
+        if(expected!=target.Handle.ToInt64().ToString())throw new Fault("wrong_target","声明的目标窗口与观察/落点窗口不一致，未发送输入。请重新列出并观察目标窗口。");
         if(FixtureWindow!=IntPtr.Zero&&target.Handle!=FixtureWindow)throw new Fault("unsupported","隔离测试仅允许操作自建测试窗口。");
         if(mode=="background"&&Native.GetForegroundWindow()!=target.Handle&&Native.Class(target.Handle).StartsWith("Chrome_",StringComparison.Ordinal))throw new Fault("browser_channel_required","该 Chromium 窗口可能主动激活或置前。后台网页操作请使用 Browser Bridge 的 browser: 标签页，不能回退为原生鼠标消息。");
-        if(mode=="background"&&Native.GetForegroundWindow()!=target.Handle&&Native.Class(target.Handle).StartsWith("Chrome_",StringComparison.Ordinal))throw new Fault("browser_channel_required","该 Chromium 窗口可能在原生鼠标消息中主动置前。请使用 Browser Bridge 的 browser: 标签页进行后台网页操作。");
         if(Mode!=mode)throw new Fault("mode_changed","执行通道已更换，请重新观察。");
         lock(sync){observation=null;}
         IntPtr foreground=Native.GetForegroundWindow();Native.Point cursor;Native.GetCursorPos(out cursor);
@@ -380,6 +413,7 @@ internal sealed class Engine {
         IntPtr receiver=IntPtr.Zero;Native.Point receiverPoint=new Native.Point();
         X=from.X;Y=from.Y;
         try{
+            if(o.Target!=null){if(actionFrames.Count>=64)actionFrames.Clear();actionFrames[target.Handle]=Tuple.Create(target.Pid,o.FrameTimestamp);}
             Message=mode=="touch"?"正在执行触摸操作…":"正在执行后台点击…";
             if(mode=="background"){
                 IntPtr child=ChildAt(target.Handle,from,o.Target!=null);var p=ClientPoint(child,from);

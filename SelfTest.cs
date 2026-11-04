@@ -10,6 +10,52 @@ using System.Windows.Forms;
 
 namespace AgentPointer {
 internal static class SelfTest {
+    internal static int Routing(){
+        var engine=new Engine{Armed=true};PracticeForm target=null,cover=null;RoutingButton targetProbe=null,coverProbe=null;Exception startup=null;var ready=new ManualResetEventSlim();
+        var ui=new Thread(delegate(){
+            try{
+                target=new PracticeForm(engine){NoActivate=true,Text="AgentMouse routing target",ShowInTaskbar=false};
+                cover=new PracticeForm(new Engine()){NoActivate=true,Text="AgentMouse routing decoy",ShowInTaskbar=false};
+                targetProbe=new RoutingButton{Bounds=target.TestButton.Bounds,Text="Routing target"};target.TestButton.Hide();target.Controls.Add(targetProbe);
+                coverProbe=new RoutingButton{Bounds=cover.TestButton.Bounds,Text="Routing decoy"};cover.TestButton.Hide();cover.Controls.Add(coverProbe);
+                var area=Screen.PrimaryScreen.WorkingArea;target.Location=new Point(area.Left+50,area.Top+50);cover.Location=target.Location;
+                target.Shown+=delegate{cover.Show();Native.SetWindowPos(cover.Handle,new IntPtr(1),0,0,0,0,0x13);Native.SetWindowPos(target.Handle,cover.Handle,0,0,0,0,0x13);ready.Set();};
+                Application.Run(target);
+            }catch(Exception error){startup=error;ready.Set();}
+        });ui.IsBackground=true;ui.SetApartmentState(ApartmentState.STA);ui.Start();
+        if(!ready.Wait(7000)||startup!=null)throw new Exception("Routing fixture startup failed",startup);
+        try{
+            engine.FixtureWindow=target.Handle;IntPtr foreground=Native.GetForegroundWindow();
+            var listed=Engine.Windows(IntPtr.Zero).Find(w=>w.Handle==target.Handle);Assert(listed!=null,"Target missing from inventory");
+            var info=Obj(listed.Export());Assert(((System.Collections.IList)info["overlappingWindowsAbove"]).Contains(cover.Handle.ToInt64().ToString()),"Covering window missing from layers");
+            var tree=Obj(DesktopInventory.Query(new Dictionary<string,object>{{"method","inspect_window"},{"windowId",target.Handle.ToInt64().ToString()}}));
+            Assert(((System.Collections.IList)tree["nodes"]).Count>1,"Standard WinForms controls were not inspected");
+            Native.Point point=new Native.Point(targetProbe.Width/2,targetProbe.Height/2);Native.ClientToScreen(targetProbe.Handle,ref point);
+            var observed=Obj(engine.Dispatch(new Dictionary<string,object>{{"method","observe"},{"windowId",target.Handle.ToInt64().ToString()},{"capture","window"}}));
+            var action=new Dictionary<string,object>{{"method","click"},{"windowId",cover.Handle.ToInt64().ToString()},{"observationId",observed["observationId"]},{"x",point.X},{"y",point.Y}};
+            Expect("wrong_target",()=>engine.Dispatch(action));Assert(targetProbe.Ups==0&&coverProbe.Ups==0,"Wrong-target rejection delivered input");
+            action["windowId"]=target.Handle.ToInt64().ToString();var delivered=Obj(engine.Dispatch(action));
+            Assert((bool)delivered["inputDelivered"]&&targetProbe.Ups==1&&coverProbe.Ups==0,"Covered native messages reached the wrong receiver");
+            var stale=Obj(engine.Dispatch(new Dictionary<string,object>{{"method","observe"},{"windowId",target.Handle.ToInt64().ToString()},{"capture","window"}}));
+            // Replay the exact pre-action frame to reproduce the recorded stuck WeChat capture.
+            var saved=(Observation)typeof(Engine).GetField("observation",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(engine);
+            saved.FrameTimestamp=Convert.ToInt64(Obj(observed["screenshot"])["frameTimestamp100ns"]);action["observationId"]=stale["observationId"];
+            Expect("unverified_frame",()=>engine.Dispatch(action));Assert(targetProbe.Ups==1&&coverProbe.Ups==0,"A repeated frame permitted another click");
+            target.Invoke((Action)delegate{target.Hide();});
+            listed=Engine.Windows(IntPtr.Zero).Find(w=>w.Handle==target.Handle);Assert(listed!=null&&!(bool)Obj(listed.Export())["canCapture"],"Hidden application window disappeared from inventory");
+            Expect("window_missing",()=>engine.Dispatch(new Dictionary<string,object>{{"method","observe"},{"windowId",target.Handle.ToInt64().ToString()},{"capture","window"}}));
+            target.Invoke((Action)delegate{Native.ShowWindow(target.Handle,7);});
+            listed=Engine.Windows(IntPtr.Zero).Find(w=>w.Handle==target.Handle);Assert(listed!=null&&(bool)Obj(listed.Export())["minimized"],"Minimized application window disappeared from inventory");
+            Assert(Native.GetForegroundWindow()==foreground,"Read/fixture test changed foreground");
+            Console.WriteLine("PASS real own-window routing: covering layer inventory, UIAutomation, wrong-target rejection, covered native-message recipient, frozen post-action frame rejection, hidden-window discovery; foreground retained. Native message receipt is not a WinForms Click/business-success assertion.");return 0;
+        }finally{
+            engine.Pause("test finished");if(target!=null&&!target.IsDisposed)target.Invoke((Action)delegate{cover.Close();target.Close();});ui.Join(3000);
+        }
+    }
+    private sealed class RoutingButton : Button {
+        internal volatile int Ups;
+        protected override void WndProc(ref System.Windows.Forms.Message message){if(message.Msg==Native.LEFTUP)Ups++;base.WndProc(ref message);}
+    }
     internal static int ProbeBackgroundCapture(string processName,string directory,string title=""){
         var candidates=Engine.Windows(IntPtr.Zero).FindAll(w=>string.Equals(w.ProcessName,processName,StringComparison.OrdinalIgnoreCase)&&(title==""||w.Name.Contains(title)));
         if(candidates.Count==0)throw new Exception("No visible, non-minimized window for process "+processName);
@@ -76,6 +122,11 @@ internal static class SelfTest {
         e.Armed=true;e.PointerVisible=false;Assert(!e.ShowPointer,"Display preference must stay effective");
         e.PointerVisible=true;e.Stopped=true;Assert(!e.ShowPointer,"Stopped input must hide the overlay");
         var status=Obj(e.Status());Assert(!(bool)Obj(status["pointer"])["visible"],"Status must agree with overlay state");
+        Assert(!Engine.FrameAdvanced(10,100,Tuple.Create(10u,100L)),"Repeated post-action frame must block input");
+        Assert(!Engine.FrameAdvanced(10,99,Tuple.Create(10u,100L)),"Older post-action frame must block input");
+        Assert(Engine.FrameAdvanced(10,101,Tuple.Create(10u,100L)),"A newly rendered frame must permit reassessment");
+        Assert(Engine.FrameAdvanced(11,99,Tuple.Create(10u,100L)),"A reused HWND in another process must not inherit the old frame receipt");
+        Assert(DesktopInventory.Matches("Weixin","微信")&&DesktopInventory.Matches("WeChatAppEx","wechat"),"WeChat process aliases");
         e.X=120;e.Y=240;e.Human.TrackPointer(new Native.Point(10,20));e.Human.TrackPointer(new Native.Point(30,40));
         Assert(e.X==120&&e.Y==240,"Human pointer tracking must not change Agent coordinates");
         Assert(e.Human.Sequence==1,"Human pointer motion must be detected");

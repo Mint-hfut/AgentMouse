@@ -7,14 +7,14 @@ AgentMouse has two input routes. Native Windows capture/messages provide desktop
 | Check | Evidence | Limit |
 |---|---|---|
 | Native plugin installation | Codex CLI 0.153.4 and ZCode CLI 0.17.1 report AgentMouse installed/enabled | Plugin-browser visual acceptance was stopped by the user; running conversations were not restarted |
-| Declared MCP connectivity | Official SDK reads cached plugin manifests, lists nine tools, calls real native status | Separate from an actual model choosing a tool |
+| Declared MCP connectivity | Official SDK reads cached plugin manifests, lists eleven tools, calls real native status | Separate from an actual model choosing a tool |
 | Windows background capture | Real Chrome HWND pixels captured using Windows.Graphics.Capture while covered | Apps can stop repainting; no desktop-crop fallback |
 | Native inactive Chrome input | Further testing reproduced activation/raising by Chrome | Now blocked; use Browser Bridge |
 | Real browser extension | Chrome for Testing 157.0.8103.38, actual unpacked extension → authenticated bridge → MCP | Passed headless components and the separate covered-window desktop workflow |
 | Foreground user window remains in front during full browser workflow | 2026-11-04: all ten checks passed with Chrome fully covered by ZCode; no focus, relative z-order or unattributed cursor movement detected | One Windows environment and local fixture; [machine-readable result](test-results/desktop-2026-11-04.json) |
 | Third-party CAPTCHA acceptance | Not tested | Local widget tests do not prove server risk checks accept automation |
 
-Both locally installed Codex/ZCode plugins were upgraded to beta.2 and passed cached-manifest/MCP status checks. ZCode's first upgrade failed with `EPERM` while renaming its staged cache; rerunning the installer completed its managed reinstall without errors. This intermittent native-client installation failure is not counted as a successful first attempt. Packaged native installation and repeat-install checks also passed in separate temporary homes.
+Both locally installed Codex/ZCode plugins were previously upgraded to beta.2 and passed cached-manifest/MCP status checks. ZCode's first upgrade failed with `EPERM` while renaming its staged cache; rerunning the installer completed its managed reinstall without errors. This intermittent native-client installation failure is not counted as a successful first attempt. Packaged native installation and repeat-install checks also passed in separate temporary homes.
 
 ## Real extension/component checks
 
@@ -52,6 +52,20 @@ PrintWindow experiments produced an empty page after an occluded resize. Native 
 Primary references: [Chromium activation](https://raw.githubusercontent.com/chromium/chromium/main/ui/views/win/hwnd_message_handler.cc), [wheel routing](https://raw.githubusercontent.com/chromium/chromium/main/ui/base/win/mouse_wheel_util.cc), [occlusion behavior](https://chromium.googlesource.com/chromium/src/+/main/docs/windows_native_window_occlusion_tracking.md), [Chrome debugger API](https://developer.chrome.com/docs/extensions/reference/api/debugger), [Windows capture](https://learn.microsoft.com/en-us/windows/uwp/audio-video-camera/screen-capture).
 
 ## Native capture/input limits
+
+### WeChat incident and beta.3 fixes
+
+The provided ZCode trace used AgentMouse beta.2. The initial list contained no visible WeChat window, and the agent launched/relaunched Weixin without first checking running processes. Later actions used `capture=window` and the WeChat HWND. Recorded receivers were WeChat's `MMUIRenderSubWindowHW`, with `targetOccludedAtPoint=true`; the trace does not show those input messages being addressed to ZCode. However, subsequent captures repeatedly returned the exact pre-action native frame timestamp, and the agent retried clicks and a drag without a verified result. An overlay drawn over ZCode is not evidence of message delivery to ZCode.
+
+Beta.3 adds process discovery (including WeChat/Weixin aliases), hidden/minimized window inventory, PID/class/owner/bounds, front-to-back depth and overlapping windows above. Rectangular overlap is advisory, not pixel-accurate occlusion. A running process is not proof that the desired account/session is logged in. Hidden/minimized windows are found but not restored automatically.
+
+The read-only `pointer_inspect_window` uses .NET UIAutomation in a short-lived CLI process with an external timeout; a blocked provider does not block the controller. It reads control names/roles, not password values, and never calls focus/Invoke/keyboard methods. Reviewing the local [Windows-MCP project](https://github.com/CursorTouch/Windows-MCP) informed this split between app/process/window/control discovery. Its foreground Click/App-switch implementations were not adopted; no upstream source was copied and no Python dependency was added.
+
+All mouse actions now declare their intended window ID. MCP and native/browser routes check the target against the observation/hit receiver. A supplied window ID defaults to a real window capture; combining it with a desktop crop is rejected. After native input, an unchanged/older frame blocks further input with `unverified_frame` (also exposed as `inputAllowed=false`). A new frame only permits reassessment; it does not prove a business outcome. Skills explicitly stop retries/relaunches and distinguish overlay position from delivery target.
+
+Current-machine read-only checks found the already-running hidden WeChat main window and obtained six accessible window/title-bar/button nodes, without exposing chat content. This does not establish that the login or main app's custom-rendered controls support background execution. The WeChat → QQ Mail business workflow has **not** passed.
+
+`npm run test:routing` uses two owned overlapping WinForms windows to verify layers, UIAutomation, wrong-target rejection, delivery to the covered target (never the decoy), replayed frozen-frame rejection, and hidden/minimized discovery. It checks actual native-message receipt, separately from a WinForms business Click event: the latter did not fire in the exploratory covered-button test. The new full-browser desktop rerun aborted when the foreground changed; its partial result is not recorded as a new complete desktop pass. The beta.2 ten-case desktop report above remains historical evidence.
 
 Windows 10 1903+ is required for HWND capture. A background MTA worker retains one WGC session. PID, window geometry, mapped-buffer layout and screenshot size are checked; preview images are capped at 4 million pixels. Minimized/cloaked windows are rejected. Unchanged surfaces can reuse the last frame, with `frameChanged=false` and the original native frame timestamp. No business success is inferred from that.
 

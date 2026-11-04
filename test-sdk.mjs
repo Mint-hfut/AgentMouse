@@ -18,7 +18,7 @@ try {
   await client.connect(transport);
   assert.equal(client.getServerVersion().name, 'agentmouse');
   const catalogue = await client.listTools();
-  assert.equal(catalogue.tools.length, 9);
+  assert.equal(catalogue.tools.length, 11);
   assert.ok(!catalogue.tools.some(tool => tool.name === 'pointer_select_window'));
   checks.push('official SDK initialization and tools/list');
   if (process.argv.includes('--open')) {
@@ -40,7 +40,7 @@ try {
     assert.equal(status.armed, true);
     const observationResult = await client.callTool({ name: 'pointer_observe', arguments: { screenshot: true, windowId: scenario.windowId } });
     const observation = text(observationResult);
-    assert.equal(observation.scope, 'desktop');
+    assert.equal(observation.scope, 'window');
     assert.equal(observation.window.title, scenario.target);
     const png = observationResult.content.find(item => item.type === 'image');
     assert.equal(png.mimeType, 'image/png');
@@ -48,7 +48,7 @@ try {
     checks.push('real PNG image through MCP and named pipe');
     const moved = text(await client.callTool({ name: 'pointer_move', arguments: { x: scenario.x, y: scenario.y } }));
     assert.equal(moved.x, scenario.x);
-    const click = text(await client.callTool({ name: 'pointer_click', arguments: { observationId: observation.observationId, x: scenario.x, y: scenario.y } }));
+    const click = text(await client.callTool({ name: 'pointer_click', arguments: { windowId: scenario.windowId, observationId: observation.observationId, x: scenario.x, y: scenario.y } }));
     assert.equal(click.inputDelivered, true);
     assert.equal(click.focusChanged, false);
     assert.equal(click.cursorChangedWithoutHumanInput, false);
@@ -58,7 +58,7 @@ try {
       const armed=text(await client.callTool({name:'pointer_status'}));assert.equal(armed.armed,true);
       const fresh=text(await client.callTool({name:'pointer_observe',arguments:{screenshot:false}}));
       assert.equal(fresh.scope,'desktop');assert.equal(fresh.window,null);
-      const result=text(await client.callTool({name:'pointer_click',arguments:{observationId:fresh.observationId,x:scenario.second.x,y:scenario.second.y}}));
+      const result=text(await client.callTool({name:'pointer_click',arguments:{windowId:scenario.second.windowId,observationId:fresh.observationId,x:scenario.second.x,y:scenario.second.y}}));
       assert.equal(result.inputDelivered,true);assert.equal(result.focusChanged,false);assert.equal(result.cursorChangedWithoutHumanInput,false);
       assert.equal(text(await client.callTool({name:'pointer_status'})).armed,true);
       checks.push('one enable crosses Chrome and Notepad without select_window or rearming');
@@ -66,7 +66,7 @@ try {
     const paused = text(await client.callTool({ name: 'pointer_pause', arguments: {} }));
     assert.equal(paused.armed, false);
     const fresh = text(await client.callTool({ name: 'pointer_observe', arguments: { screenshot: false } }));
-    const blocked = await client.callTool({ name: 'pointer_click', arguments: { observationId: fresh.observationId, x: scenario.x, y: scenario.y } });
+    const blocked = await client.callTool({ name: 'pointer_click', arguments: { windowId: scenario.windowId, observationId: fresh.observationId, x: scenario.x, y: scenario.y } });
     assert.equal(blocked.isError, true);
     assert.equal(JSON.parse(blocked.content[0].text).code, 'paused');
     assert.match(JSON.parse(blocked.content[0].text).message, /暂停/);

@@ -48,6 +48,7 @@ internal static class Native {
     [DllImport("user32.dll")] internal static extern bool IsWindowVisible(IntPtr w);
     [DllImport("user32.dll")] internal static extern bool IsWindowEnabled(IntPtr w);
     [DllImport("user32.dll")] internal static extern bool IsIconic(IntPtr w);
+    [DllImport("user32.dll")] internal static extern bool ShowWindow(IntPtr w,int command);
     [DllImport("user32.dll")] internal static extern bool GetWindowRect(IntPtr w,out Rect rect);
     [DllImport("user32.dll")] internal static extern bool GetClientRect(IntPtr w,out Rect rect);
     [DllImport("user32.dll")] internal static extern uint GetDpiForWindow(IntPtr window);
@@ -60,6 +61,7 @@ internal static class Native {
     [DllImport("user32.dll",EntryPoint="GetWindowLongPtrW")] internal static extern IntPtr GetWindowLongPtr(IntPtr window,int index);
     [DllImport("dwmapi.dll")] internal static extern int DwmGetWindowAttribute(IntPtr window,int attribute,out int value,int size);
     [DllImport("user32.dll")] internal static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] internal static extern IntPtr GetWindow(IntPtr window,uint command);
     // Keep pointer observations in physical pixels even across callers with different DPI contexts.
     [DllImport("user32.dll",EntryPoint="GetPhysicalCursorPos")] internal static extern bool GetCursorPos(out Point point);
     [DllImport("user32.dll",SetLastError=true)] internal static extern bool SetWindowPos(IntPtr window,IntPtr after,int x,int y,int width,int height,uint flags);

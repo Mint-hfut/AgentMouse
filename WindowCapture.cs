@@ -136,7 +136,7 @@ internal static class WindowCapture {
                     double scale=Math.Min(1,Math.Sqrt(4000000.0/((long)width*height)));int w=Math.Max(1,(int)(width*scale)),h=Math.Max(1,(int)(height*scale));
                     using(var resized=new Bitmap(w,h))using(var graphics=Graphics.FromImage(resized))using(var bytes=new MemoryStream()){
                         graphics.DrawImage(bitmap,new Rectangle(0,0,w,h));resized.Save(bytes,ImageFormat.Png);
-                        return new{mimeType="image/png",data=Convert.ToBase64String(bytes.ToArray()),x=source.Left,y=source.Top,width=w,height=h,sourceWidth=width,sourceHeight=height,scaleX=(double)width/w,scaleY=(double)height/h,captureMethod="Windows.Graphics.Capture",frameTimestamp100ns=timestamp,frameChanged=changed};
+                        return new CaptureImage{mimeType="image/png",data=Convert.ToBase64String(bytes.ToArray()),x=source.Left,y=source.Top,width=w,height=h,sourceWidth=width,sourceHeight=height,scaleX=(double)width/w,scaleY=(double)height/h,captureMethod="Windows.Graphics.Capture",frameTimestamp100ns=timestamp,frameChanged=changed};
                     }
                 }
             }finally{Method<UnmapResource>(context,15)(context,staging,0);}

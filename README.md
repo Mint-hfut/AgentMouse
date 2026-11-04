@@ -8,7 +8,7 @@ Keep working while your agent observes and operates another app. AgentMouse comb
 
 For web tasks, **Browser Bridge** reads real tab images and sends coordinate-based mouse input through Chrome's debugger API. It uses your existing browser/profile and does not rely on DOM selectors, injected clicks or per-site scripts. Native Windows capture/messages remain available for desktop apps.
 
-**Beta:** all ten local browser workflow checks pass with Chrome fully covered by the foreground ZCode window, including fresh background images, slider/puzzle gestures, ordered clicks and cancellation. The test detected no foreground, z-order or unattributed system-pointer interference. This is not a universal app-compatibility or CAPTCHA-solving guarantee. [Desktop evidence](docs/test-results/desktop-2026-11-04.json).
+**Beta:** beta.3 adds process/window/control discovery and frozen-frame input protection, verified with owned overlapping Windows fixtures. In the historical beta.2 desktop acceptance, all ten local browser workflow checks passed with Chrome fully covered by the foreground ZCode window, including fresh background images, slider/puzzle gestures, ordered clicks and cancellation. The test detected no foreground, z-order or unattributed system-pointer interference. This is not a universal app-compatibility or CAPTCHA-solving guarantee. [Desktop evidence](docs/test-results/desktop-2026-11-04.json).
 
 ## Install
 
@@ -61,7 +61,9 @@ The controller UI is currently Chinese. Chrome may display its standard debuggin
 |---|---|
 | `pointer_open` | Open the local controller; a new instance starts paused |
 | `pointer_status` | Controller/capture capabilities and browser pairing status |
-| `pointer_list_windows` | Native windows plus connected `browser:` tabs |
+| `pointer_list_windows` | Native window identity, visibility, bounds, foreground, layers and connected browser tabs |
+| `pointer_list_apps` | Running processes by app name, including tray/hidden apps |
+| `pointer_inspect_window` | Read-only accessibility control names, roles and bounds for one HWND |
 | `pointer_observe` | Desktop image, native window surface, or real browser viewport image |
 | `pointer_move` | Overlay only by default; with a browser observation, move/hover its virtual pointer |
 | `pointer_click` | Left/right click; `clickCount=2` double click or `holdMs` long press |
@@ -69,7 +71,11 @@ The controller UI is currently Chinese. Chrome may display its standard debuggin
 | `pointer_scroll` | Browser wheel; native covered-window wheels are rejected, use scrollbar clicks |
 | `pointer_pause` | Stop input, release held buttons/captures and hide the overlay |
 
-There is no permanent target binding. `capture="desktop"` uses visible screen-position routing; native `windowId` then only crops the screen. `capture="window"` addresses one HWND or `browser:` tab for that single-use observation. Reobserve another target to switch apps/tabs.
+There is no permanent target binding. Every click/drag/scroll explicitly supplies the intended `windowId` and its fresh observation token; mismatches are rejected. Supplying a window ID defaults to real window capture, never a crop of the covering foreground app. A desktop overview has no fixed target; any input still needs an explicit intended window ID. Reobserve another target to switch apps/tabs.
+
+Query `pointer_list_apps` before launching an app: missing visible windows can mean a running tray/minimized app. Hidden/minimized windows are discoverable but cannot be captured or clicked; AgentMouse does not automatically restore them. `pointer_inspect_window` adds Windows-MCP-style semantic context using built-in .NET UIAutomation, without a Python runtime or foreground input tools. Some custom apps expose only window chrome.
+
+After native input, an unchanged/older native capture timestamp returns `inputAllowed=false`; further input is rejected with `unverified_frame`. Stop and inspect rather than repeating clicks. Even a newer frame does not prove the app accepted a business action.
 
 **Follow the returned coordinate space:** native captures use physical desktop pixels; browser images use viewport CSS pixels. Both return image origin and scaling metadata:
 
@@ -90,7 +96,7 @@ Desktop non-interference, actual-client native loading and component tests are s
 
 ## Configuration and removal
 
-Runtime: `%LOCALAPPDATA%\AgentMouse\0.6.0-beta.2` (physical path resolved for packaged Windows hosts). Browser pairing: `~/.agentmouse/browser`, with a per-user local token and authenticated loopback-only service. Generated secrets/private profiles stay outside the repo. Existing settings are retained with backups under the runtime's `backups/`.
+Runtime: `%LOCALAPPDATA%\AgentMouse\0.6.0-beta.3` (physical path resolved for packaged Windows hosts). Browser pairing: `~/.agentmouse/browser`, with a per-user local token and authenticated loopback-only service. Generated secrets/private profiles stay outside the repo. Existing settings are retained with backups under the runtime's `backups/`.
 
 MCP-only paths: Claude `~/.claude.json`, Codex `~/.codex/config.toml`, ZCode `~/.zcode/cli/config.json`, WorkBuddy `~/.workbuddy/mcp.json`, DSH `~/.dsh/profiles/<profile>/cordis.patch.yml`. Codex native upgrades relocate only AgentMouse's own marketplace when the versioned source changes. Native installer failures report possible partial completion; MCP-only settings writes support rollback.
 

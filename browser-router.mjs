@@ -23,6 +23,7 @@ export function browserRouter(nativeCall) {
       if (request.observationId?.startsWith('browser-')) {
         const tabId = browserObservations.get(request.observationId);
         if (!tabId) return { ok: false, error: { code: 'stale_observation', message: 'Observe the browser tab again.' } };
+        if (request.windowId !== 'browser:' + tabId) return { ok: false, error: { code: 'wrong_target', message: 'The declared windowId does not match the observed browser tab. No input was sent.' } };
         browserObservations.delete(request.observationId);
         return { ok: true, result: await browserCall({ ...request, tabId }) };
       }

@@ -95,7 +95,7 @@ if (process.argv[2] === '--serve') {
       const tabs=(await bridgeRequest(testConfig,'/call',{method:'list_tabs'})).result;
       const tab=tabs.find(tab=>tab.title.startsWith('APCOMPAT-'+marker));assert.ok(tab,'The real extension did not list the fixture tab');ready.windowId='browser:'+tab.id;
     }
-    client = new Client({ name: 'agentmouse-background-chrome', version: '0.6.0-beta.2' });
+    client = new Client({ name: 'agentmouse-background-chrome', version: '0.6.0-beta.3' });
     const serverArgs = extensionTest ? [join(root,'scripts/extension-test-server.mjs'),headless?'headless':pipe] : nativeMessages ? [fileURLToPath(import.meta.url), '--serve', pipe] : [join(root, 'scripts/browser-test-server.mjs'), 'ws://127.0.0.1:' + port + endpoint, targetId, headless ? 'headless' : pipe];
     await client.connect(new StdioClientTransport({ command: process.execPath, args: serverArgs, cwd: root, env:{...process.env,...(extensionTest?{AGENTMOUSE_HOME:join(temp,'state')}:{})},stderr: 'pipe', maxBufferSize: 32 * 1024 * 1024 }));
     const text = result => { assert.ok(!result.isError, JSON.stringify(result)); return JSON.parse(result.content.find(item => item.type === 'text').text); };
@@ -121,13 +121,13 @@ if (process.argv[2] === '--serve') {
       let observed = name === 'left' ? first : await observe(name + '-before');
       let coordinates = point(observed, button ? '237,108,2' : '41,121,255');
       if (!button && nativeMessages) {
-        const blocked = await client.callTool({ name: 'pointer_scroll', arguments: { observationId: observed.value.observationId, ...coordinates, delta: -120 } });
+        const blocked = await client.callTool({ name: 'pointer_scroll', arguments: { windowId: ready.windowId, observationId: observed.value.observationId, ...coordinates, delta: -120 } });
         assert.equal(blocked.isError, true); assert.equal(JSON.parse(blocked.content[0].text).code, 'unsupported');
         observed = await observe('scrollbar-fresh');
         const pane = native(['--image-color-point', observed.file, '41,121,255']), image = observed.value.screenshot;
         coordinates = { x: Math.round(image.x + (pane.maxX + 10) * image.scaleX), y: Math.round(image.y + (pane.maxY - 8) * image.scaleY) };
       }
-      const result = text(await client.callTool({ name: !button && !nativeMessages ? 'pointer_scroll' : 'pointer_click', arguments: { observationId: observed.value.observationId, ...coordinates, ...(!button && !nativeMessages ? { delta: -120 } : { button: button || 'left' }) } }));
+      const result = text(await client.callTool({ name: !button && !nativeMessages ? 'pointer_scroll' : 'pointer_click', arguments: { windowId: ready.windowId, observationId: observed.value.observationId, ...coordinates, ...(!button && !nativeMessages ? { delta: -120 } : { button: button || 'left' }) } }));
       console.log(JSON.stringify({ delivery: name, result }));
       assert.equal(result.backgroundTarget, true); assert.equal(result.backgroundInterferenceFree, true); assert.equal(result.focusChanged, false); assert.equal(result.cursorChangedWithoutHumanInput, false);
       if (nativeMessages) assert.equal(result.targetOccludedAtPoint, true);
@@ -161,39 +161,39 @@ if (process.argv[2] === '--serve') {
     const thumb = native(['--image-color-point', observed.file, '244,63,94']);
     const dpiScale = (thumb.maxX - thumb.minX + 1) / 36;
     let from = point(observed, '244,63,94');
-    let delivery = text(await client.callTool({ name: 'pointer_drag', arguments: { observationId: observed.value.observationId, ...from, toX: Math.round(from.x + 264 * dpiScale * observed.value.screenshot.scaleX), toY: from.y, durationMs: 650 } }));
+    let delivery = text(await client.callTool({ name: 'pointer_drag', arguments: { windowId: ready.windowId, observationId: observed.value.observationId, ...from, toX: Math.round(from.x + 264 * dpiScale * observed.value.screenshot.scaleX), toY: from.y, durationMs: 650 } }));
     await receipt('slider', observed, '0,255,255', state => state.sliderPassed, delivery);
 
     observed = await observe('path-drag-before'); from = point(observed, '142,36,170');
     const destination = point(observed, '146,64,14');
-    delivery = text(await client.callTool({ name: 'pointer_drag', arguments: { observationId: observed.value.observationId, ...from, toX: destination.x, toY: destination.y, durationMs: 650, path: [{ x: Math.round(from.x + 55 * dpiScale), y: Math.round(from.y - 45 * dpiScale) }] } }));
+    delivery = text(await client.callTool({ name: 'pointer_drag', arguments: { windowId: ready.windowId, observationId: observed.value.observationId, ...from, toX: destination.x, toY: destination.y, durationMs: 650, path: [{ x: Math.round(from.x + 55 * dpiScale), y: Math.round(from.y - 45 * dpiScale) }] } }));
     await receipt('path-drag', observed, '255,0,255', state => state.dragPassed && state.dragPath.length > 5 && state.dragPath.every(p => (p.buttons & 1) === 1) && state.dragPath.some(p => p.y < state.dragPath[0].y - 20), delivery);
 
     observed = await observe('hold-before'); from = point(observed, '100,116,139');
-    delivery = text(await client.callTool({ name: 'pointer_click', arguments: { observationId: observed.value.observationId, ...from, holdMs: 950 } }));
+    delivery = text(await client.callTool({ name: 'pointer_click', arguments: { windowId: ready.windowId, observationId: observed.value.observationId, ...from, holdMs: 950 } }));
     await receipt('long-press', observed, '255,0,0', state => state.longPressed, delivery);
 
     observed = await observe('double-before'); from = point(observed, '67,56,202');
-    delivery = text(await client.callTool({ name: 'pointer_click', arguments: { observationId: observed.value.observationId, ...from, clickCount: 2 } }));
+    delivery = text(await client.callTool({ name: 'pointer_click', arguments: { windowId: ready.windowId, observationId: observed.value.observationId, ...from, clickCount: 2 } }));
     await receipt('double-click', observed, '0,0,255', state => state.doubleClicks === 1, delivery);
 
     for (const index of [0, 2, 1]) {
       observed = await observe('point-' + index + '-before');
       const group = native(['--image-color-point', observed.file, '124,45,18']), image = observed.value.screenshot;
       const location = { x: Math.round(image.x + (group.minX + (index * 60 + 30) / 180 * (group.maxX - group.minX + 1)) * image.scaleX), y: Math.round(image.y + (group.minY + (group.maxY - group.minY) / 2) * image.scaleY) };
-      delivery = text(await client.callTool({ name: 'pointer_click', arguments: { observationId: observed.value.observationId, ...location } })); verifyDelivery(delivery);
+      delivery = text(await client.callTool({ name: 'pointer_click', arguments: { windowId: ready.windowId, observationId: observed.value.observationId, ...location } })); verifyDelivery(delivery);
     }
     await receipt('ordered-point-selection', observed, '0,255,0', state => state.pointPassed && state.pointSequence === 'ACB', delivery);
 
     if(!nativeMessages){
       observed=await observe('html5-before');from=point(observed,'69,10,10');const end=point(observed,'77,124,15');
-      delivery=text(await client.callTool({name:'pointer_drag',arguments:{observationId:observed.value.observationId,...from,toX:end.x,toY:end.y,durationMs:650}}));
+      delivery=text(await client.callTool({name:'pointer_drag',arguments:{windowId:ready.windowId,observationId:observed.value.observationId,...from,toX:end.x,toY:end.y,durationMs:650}}));
       await receipt('html5-drag-drop',observed,'170,0,255',state=>state.htmlDropPassed,delivery);
     }
 
     observed = await observe('cancel-before'); from = point(observed, '142,36,170');
     const pointerUps = (await gestures()).pointerUps;
-    const interrupted = client.callTool({ name: 'pointer_drag', arguments: { observationId: observed.value.observationId, ...from, toX: from.x + 55, toY: from.y + 55, durationMs: 1500 } });
+    const interrupted = client.callTool({ name: 'pointer_drag', arguments: { windowId: ready.windowId, observationId: observed.value.observationId, ...from, toX: from.x + 55, toY: from.y + 55, durationMs: 1500 } });
     await waitFor(async () => (await gestures()).dragging);
     const paused = text(await client.callTool({ name: 'pointer_pause', arguments: {} }));
     assert.equal(paused.armed, false); assert.equal(paused.backgroundButtonHeld, false);

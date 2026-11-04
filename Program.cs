@@ -12,6 +12,7 @@ internal static class Program {
         Native.DpiAware();
         try{
             if(args.Length>0&&args[0]=="--state-self-test")return SelfTest.StateOnly();
+            if(args.Length==1&&args[0]=="--routing-self-test")return SelfTest.Routing();
             if(args.Length==1&&args[0]=="--foreground-state")return SelfTest.ForegroundState();
             if(args.Length==3&&args[0]=="--image-color-point")return SelfTest.ImagePoint(args[1],args[2]);
             if(args.Length==3&&args[0]=="--background-fixture-server")return SelfTest.BackgroundFixtureServer(args[1],args[2]);
@@ -19,6 +20,7 @@ internal static class Program {
             if(args.Length>0&&args[0]=="--self-test")return SelfTest.Run(args.Length>1?args[1]:"test-report.json");
             string pipe=Transport.DefaultName;
             if(args.Length>=2&&args[0]=="--pipe"){pipe=args[1];var rest=new string[args.Length-2];Array.Copy(args,2,rest,0,rest.Length);args=rest;}
+            if(args.Length==2&&args[0]=="--desktop-query"){Console.WriteLine(Json.Write(new{ok=true,result=DesktopInventory.Query(Json.Read(args[1]))}));return 0;}
             if(args.Length>=2&&(args[0]=="--call"||args[0]=="--request-file")){
                 string request=args[0]=="--request-file"?File.ReadAllText(args[1]):args[1];
                 if(!request.TrimStart().StartsWith("{"))request=Json.Write(new{method=request});
