@@ -46,7 +46,7 @@ try {
   if (options.browser && !['extension', 'none'].includes(options.browser)) throw new Error('--browser must be extension or none.');
   if (!options.dryRun && (!existsSync(join(root, 'dist/AgentMouse.exe')) || !existsSync(join(root, 'dist/AgentMouse.Cli.exe')))) (await import('./scripts/build-native.mjs')).buildNative(root);
   const home = options.home ? resolve(options.home) : homedir();
-  let runtimeRoot = resolve(options['install-dir'] || join(options.home ? home : (process.env.LOCALAPPDATA || join(home, 'AppData/Local')), 'AgentMouse/0.7.0-beta.3' + (engine === 'fusion' ? '-fusion' : '')));
+  let runtimeRoot = resolve(options['install-dir'] || join(options.home ? home : (process.env.LOCALAPPDATA || join(home, 'AppData/Local')), 'AgentMouse/0.7.0-beta.4' + (engine === 'fusion' ? '-fusion' : '')));
   // Packaged Windows hosts can redirect LocalAppData; persist the physical path for other processes.
   if (!options.dryRun) { await mkdir(runtimeRoot, { recursive: true }); runtimeRoot = await realpath(runtimeRoot); }
   const env = options.home ? { ...process.env, CODEX_HOME: join(home, '.codex'), ZCODE_STORAGE_DIR: join(home, '.zcode'), CLAUDE_CONFIG_DIR: join(home, '.claude'), DSH_HOME: join(home, '.dsh'), AGENTMOUSE_HOME: join(home, '.agentmouse') } : process.env;

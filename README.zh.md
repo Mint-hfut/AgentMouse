@@ -1,5 +1,7 @@
 # AgentMouse
 
+**严重兼容性事件（2026-11-04）：** 用户报告微信在自动化后无法交互，重启微信才恢复。根因尚未确认。请保持现有 AgentMouse 插件禁用，不要对真实微信复测。未发布的防护补丁已临时隔离微信自动化、将 UIA 改为显式启用，并移除 Full 的任意 PowerShell 入口；这不代表卡死根因已解决。
+
 **让 AI Agent 在后台操作电脑，Agent 指针与用户鼠标解耦，不和你抢鼠标。**
 
 [English](README.md) · [兼容性与实测记录](docs/compatibility.md) · [下载](https://github.com/Mint-hfut/AgentMouse/releases)
@@ -12,18 +14,18 @@
 
 ## 两个独立版本
 
-[Core ZIP](https://github.com/Mint-hfut/AgentMouse/releases/download/v0.7.0-beta.3/AgentMouse-Core-0.7.0-beta.3-windows-x64.zip) · [Full ZIP](https://github.com/Mint-hfut/AgentMouse/releases/download/v0.7.0-beta.3/AgentMouse-Full-0.7.0-beta.3-windows-x64.zip)
+发生微信卡死事件后，旧版下载入口暂不推荐；请先看顶部事件说明。
 
 | 版本 | 内容 | Python / Windows-MCP | MCP |
 |---|---|---|---|
 | **AgentMouse Core** | 我们的独立鼠标、截图、窗口保护、MCP/插件/技能 | 不包含，也不需要 | 11 工具 |
-| **AgentMouse Full** | Core + Windows-MCP 系统工具/控件树 + 融合适配层 | 自带 Python 和依赖，无需单独安装 | 27 工具名 |
+| **AgentMouse Full** | Core + Windows-MCP 系统工具/控件树 + 融合适配层 | 自带 Python 和依赖，无需单独安装 | 26 工具名 |
 
 Core 可单独运行和构建，Full 通过适配层复用 Core。我们的实现与上游贡献见[模块设计](docs/architecture.md)。Full 中独立键盘/批量输入仍未开放，相关接口明确返回不支持。
 
 ## Windows-MCP 融合模式
 
-新增融合版：Windows-MCP 的系统工具、目标控件树 + AgentMouse 后台截图与鼠标，统一提供 **27 个工具**。真实 Windows 控件标签到后台点击，以及被前台 ChatGPT 完全遮挡的 Chrome 十项检查均已通过。[融合能力、限制和用法](docs/fusion.md)。
+新增融合版：Windows-MCP 的系统工具、目标控件树 + AgentMouse 后台截图与鼠标，统一提供 **26 个工具**。真实 Windows 控件标签到后台点击，以及被前台 ChatGPT 完全遮挡的 Chrome 十项检查均已通过。[融合能力、限制和用法](docs/fusion.md)。
 
 ## 一键安装到智能体
 

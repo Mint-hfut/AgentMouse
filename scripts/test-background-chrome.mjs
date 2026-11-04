@@ -98,7 +98,7 @@ if (process.argv[2] === '--serve') {
       const tabs=(await bridgeRequest(testConfig,'/call',{method:'list_tabs'})).result;
       const tab=tabs.find(tab=>tab.title.startsWith('APCOMPAT-'+marker));assert.ok(tab,'The real extension did not list the fixture tab');ready.windowId='browser:'+tab.id;
     }
-    client = new Client({ name: 'agentmouse-background-chrome', version: '0.7.0-beta.3' });
+    client = new Client({ name: 'agentmouse-background-chrome', version: '0.7.0-beta.4' });
     let serverArgs = extensionTest ? [join(root,'scripts/extension-test-server.mjs'),headless?'headless':pipe] : nativeMessages ? [fileURLToPath(import.meta.url), '--serve', pipe] : [join(root, 'scripts/browser-test-server.mjs'), 'ws://127.0.0.1:' + port + endpoint, targetId, headless ? 'headless' : pipe];
     if (fusionTest) {
       const config = JSON.parse(await readFile(join(process.env.AGENTMOUSE_HOME || join(homedir(),'.agentmouse'),'fusion/config.json'),'utf8'));

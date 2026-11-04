@@ -5,6 +5,14 @@ using System.Windows.Automation;
 
 namespace AgentPointer {
 internal static class DesktopInventory {
+    internal static bool Quarantined(string name){
+        name=name.EndsWith(".exe",StringComparison.OrdinalIgnoreCase)?name.Substring(0,name.Length-4):name;
+        return name.Equals("Weixin",StringComparison.OrdinalIgnoreCase)||name.Equals("WeChat",StringComparison.OrdinalIgnoreCase)||name.Equals("WeChatAppEx",StringComparison.OrdinalIgnoreCase);
+    }
+    internal static void RequireAutomationAllowed(uint pid){
+        try{using(var process=Process.GetProcessById((int)pid))if(Quarantined(process.ProcessName))throw new Fault("target_quarantined","微信自动化因卡死事件已临时隔离。禁止点击、窗口采集和控件查询；不得用脚本或物理输入绕过。");}
+        catch(ArgumentException){throw new Fault("window_changed","Target process no longer exists.");}
+    }
     internal static object Query(Dictionary<string,object> request){
         string method=Json.Text(request,"method","");
         if(method=="list_windows")return Engine.Windows(IntPtr.Zero).ConvertAll<object>(w=>w.Export());
@@ -32,6 +40,7 @@ internal static class DesktopInventory {
         long id;if(!long.TryParse(windowId,out id)||id<=0)throw new Fault("invalid_argument","A native windowId is required.");
         var window=Engine.Windows(IntPtr.Zero).Find(w=>w.Handle.ToInt64()==id);
         if(window==null)throw new Fault("window_missing","Window no longer exists; list windows/apps again.");
+        RequireAutomationAllowed(window.Pid);
         var nodes=new List<object>();bool truncated=false;var started=Stopwatch.StartNew();
         try{
             var root=AutomationElement.FromHandle(window.Handle);var queue=new Queue<Tuple<AutomationElement,int,int>>();

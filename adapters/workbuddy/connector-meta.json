@@ -7,7 +7,7 @@
   "description_en": "Use an independent Agent pointer for background clicks and scrolling across Windows apps.",
   "source": "agentmouse",
   "type": "mcp",
-  "version": "0.7.0-beta.3",
+  "version": "0.7.0-beta.4",
   "examples_zh": ["查看桌面并点击指定的软件按钮", "跨窗口执行操作，完成后停止并隐藏 Agent 指针"],
   "examples_en": ["Inspect the desktop and click the requested app control", "Operate across windows, then stop and hide the agent pointer"]
 }

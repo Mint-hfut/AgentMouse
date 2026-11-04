@@ -1,5 +1,7 @@
 # AgentMouse
 
+**Compatibility incident (2026-11-04):** WeChat became unresponsive after automation and required an app restart. Root cause is unconfirmed. Keep the installed AgentMouse plugin disabled and do not retry against live WeChat. Unreleased containment quarantines WeChat automation, makes UIA opt-in and removes arbitrary PowerShell from Full; this is not a root-cause fix.
+
 **Background computer use for AI agents on Windows, with a pointer independent of your real mouse.**
 
 [中文](README.zh.md) · [Compatibility and evidence](docs/compatibility.md) · [Releases](https://github.com/Mint-hfut/AgentMouse/releases)
@@ -12,18 +14,18 @@ For web tasks, **Browser Bridge** reads real tab images and sends coordinate-bas
 
 ## Two independent editions
 
-[Core ZIP](https://github.com/Mint-hfut/AgentMouse/releases/download/v0.7.0-beta.3/AgentMouse-Core-0.7.0-beta.3-windows-x64.zip) · [Full ZIP](https://github.com/Mint-hfut/AgentMouse/releases/download/v0.7.0-beta.3/AgentMouse-Full-0.7.0-beta.3-windows-x64.zip)
+Older downloads are not recommended during the WeChat incident; see the notice above.
 
 | Edition | Contents | Python / Windows-MCP | MCP |
 |---|---|---|---|
 | **AgentMouse Core** | Our independent pointer, capture, target guards, MCP/plugins/skills | Neither included nor required | 11 tools |
-| **AgentMouse Full** | Core + Windows-MCP system/control services + fusion adapter | Bundled Python and dependencies; no separate install | 27 tool names |
+| **AgentMouse Full** | Core + Windows-MCP system/control services + fusion adapter | Bundled Python and dependencies; no separate install | 26 tool names |
 
 Core builds and runs independently. Full calls Core through an adapter. [Module boundaries and contributions](docs/architecture.md). Independent keyboard/batch-input compatibility interfaces still return explicit unsupported errors.
 
 ## Windows-MCP fusion
 
-Fusion combines Windows-MCP system tools/target-scoped controls with AgentMouse background capture/input in one **27-tool MCP server**. Native Windows label-to-input integration and ten covered-Chrome desktop cases passed. [Fusion setup, capabilities and limits](docs/fusion.md).
+Fusion combines Windows-MCP system tools/target-scoped controls with AgentMouse background capture/input in one **26-tool MCP server**. Native Windows label-to-input integration and ten covered-Chrome desktop cases passed. [Fusion setup, capabilities and limits](docs/fusion.md).
 
 ## Install
 

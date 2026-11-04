@@ -22,5 +22,5 @@
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'none'; connect-src http://127.0.0.1:*"
   },
-  "version_name": "0.7.0-beta.3"
+  "version_name": "0.7.0-beta.4"
 }

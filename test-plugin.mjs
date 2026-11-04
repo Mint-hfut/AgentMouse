@@ -32,7 +32,7 @@ assert.throws(()=>hostConfig('unknown'));
 
 async function lifecycle(action,lateOpen=false,capture=false){
   const input=new PassThrough(),output=new PassThrough(),errors=new PassThrough(),calls=[];
-  const server=serve({input,output,errorOutput:errors,call:async request=>{calls.push(request.method);return {ok:true,result:request.method==='status'?{windowIdentityGuard:true,postActionFrameGuard:true,backgroundWindowCapture:true}:request.capture==='window'?{scope:'window',screenshot:{data:'iVBORw==',mimeType:'image/png',captureMethod:'Windows.Graphics.Capture'}}:{}};}});
+  const server=serve({input,output,errorOutput:errors,call:async request=>{calls.push(request.method);return {ok:true,result:request.method==='status'?{windowIdentityGuard:true,targetQuarantine:true,postActionFrameGuard:true,backgroundWindowCapture:true}:request.capture==='window'?{scope:'window',screenshot:{data:'iVBORw==',mimeType:'image/png',captureMethod:'Windows.Graphics.Capture'}}:{}};}});
   let id=0,buffer='';const waiting=new Map();
   output.on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf('\n'))>=0){const value=JSON.parse(buffer.slice(0,end));buffer=buffer.slice(end+1);waiting.get(value.id)?.(value);waiting.delete(value.id);}});
   function send(method,params){const current=++id;return new Promise(resolve=>{waiting.set(current,resolve);input.write(JSON.stringify({jsonrpc:'2.0',id:current,method,params})+'\n');});}

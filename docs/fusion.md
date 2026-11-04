@@ -1,5 +1,7 @@
 # Windows-MCP + AgentMouse fusion
 
+> 当前有未解决的微信卡死事件。请保持已安装插件禁用，不对真实微信重试。防护补丁默认关闭 UIA，移除任意 PowerShell，并将 Full 调整为 26 个工具；这是临时隔离，尚未证明根因修复。详见 [事件记录](incidents/2026-11-04-wechat-hang.md)。
+
 融合模式将 Windows-MCP 的系统工具与控件识别，接到 AgentMouse 的后台鼠标、窗口采集和浏览器通道。Agent 连接一个 MCP 服务即可使用。原 Windows-MCP 目录没有被修改。
 
 ## 安装
@@ -11,7 +13,7 @@
 .\install.cmd --engine fusion --agent all
 ```
 
-Full 包默认融合模式，Core 包默认原生模式；`--engine native` 保留原 11 工具的轻量模式，不需要 Python/uv。源码目录的非交互命令默认原生模式；发行包按自身 Core/Full 标识选择。刷新或重启所选 Agent，融合模式应看到 **27 个工具**。
+Full 包默认融合模式，Core 包默认原生模式；`--engine native` 保留原 11 工具的轻量模式，不需要 Python/uv。源码目录的非交互命令默认原生模式；发行包按自身 Core/Full 标识选择。刷新或重启所选 Agent，融合模式应看到 **26 个工具**。
 
 打包的 Python 位于用户 `~/.agentmouse/fusion/runtime-<content-id>`；所选 Agent 的插件/MCP 入口改为 `fusion-entry.mjs`。控制器仍需由用户启用输入，浏览器仍需加载生成的 Browser Bridge 扩展。不会自动启动、登录或把业务应用置前。
 
@@ -21,7 +23,7 @@ Full 包默认融合模式，Core 包默认原生模式；`--engine native` 保�
 |---|---|
 | Snapshot / Screenshot | AgentMouse 采集真实目标画面；原生窗口叠加 Windows-MCP 的目标控件信息 |
 | Click / Move / Scroll | 全部经 AgentMouse 执行；保留目标核对、单次观察编号、旧帧拦截、取消释放 |
-| FileSystem / Process / Registry / PowerShell | 使用 Windows-MCP 原实现 |
+| FileSystem / Process / Registry | 使用 Windows-MCP 原实现 |
 | DisplayInventory / Clipboard / Notification | 使用 Windows-MCP 原实现；剪贴板和系统操作仍是共享资源 |
 | Scrape | 保留 HTTP 抓取；不使用会混入当前前台页面的全局 DOM 抓取 |
 | App | 查询程序和窗口；自动启动、切换前台、调整窗口的模式未开放 |
@@ -53,7 +55,7 @@ Snapshot 返回图片、`observationId`、窗口身份、坐标空间和 `contro
 
 ## 实测
 
-- 官方 MCP SDK：27 工具、强制目标/观察编号、上游文件/显示器工具、进程发现，以及拒绝共享键盘/批量输入。
+- 官方 MCP SDK：26 工具、强制目标/观察编号、上游文件/显示器工具、进程发现，以及拒绝共享键盘/批量输入。
 - 自建真实 Windows 窗口：Windows-MCP 标签 → AgentMouse WGC 画面 → 遮挡窗口输入 → 新控件状态/PNG；错误目标和旧编号被拒绝，前台及物理鼠标保持不变。
 - 真实 Chrome 扩展与融合 MCP：Chrome 完全被前台 ChatGPT 遮挡，十项鼠标/滑块/拖动/点选/HTML5 拖放/中断释放检查通过。[结果](test-results/fusion-desktop-2026-11-04.json)。仅强制 sRGB 稳定颜色断言，未关闭 GPU 或遮挡机制。
 - 同一路径也有无界面组件测试，加入 GitHub CI 和发布检查。
@@ -70,7 +72,7 @@ node scripts/test-background-chrome.mjs --headless-test --fusion-test
 
 ## English
 
-One MCP server exposes 27 tools: Windows-MCP system services and target-scoped UIAutomation, plus AgentMouse-only background capture/input. Install with `install.cmd --engine fusion --agent codex,zcode`; the Full ZIP bundles Python and dependencies, so users need neither Python nor uv installed. Core and Full packages select their own engine by default. Only developers building Full from source need uv.
+One MCP server exposes 26 tools: Windows-MCP system services and explicitly enabled target-scoped UIAutomation, plus AgentMouse-only background capture/input. Install with `install.cmd --engine fusion --agent codex,zcode`; the Full ZIP bundles Python and dependencies, so users need neither Python nor uv installed. Core and Full packages select their own engine by default. Only developers building Full from source need uv.
 
 Mouse actions require the exact `window_id` and fresh `observation_id`; labels belong to one target observation. Physical keyboard, foreground App launching/switching, Ctrl batches, middle click, horizontal wheel, native hover and global foreground DOM scraping are not enabled. There is no physical-input fallback. System tools and clipboard remain shared Windows operations.
 

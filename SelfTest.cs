@@ -145,6 +145,7 @@ internal static class SelfTest {
         Assert(Engine.FrameAdvanced(10,101,Tuple.Create(10u,100L)),"A newly rendered frame must permit reassessment");
         Assert(Engine.FrameAdvanced(11,99,Tuple.Create(10u,100L)),"A reused HWND in another process must not inherit the old frame receipt");
         Assert(DesktopInventory.Matches("Weixin","微信")&&DesktopInventory.Matches("WeChatAppEx","wechat"),"WeChat process aliases");
+        Assert(DesktopInventory.Quarantined("Weixin.exe")&&DesktopInventory.Quarantined("WECHAT")&&DesktopInventory.Quarantined("WeChatAppEx")&&!DesktopInventory.Quarantined("AgentMouse.Cli"),"Incident quarantine covers WeChat processes without blocking the owned fixture");
         e.X=120;e.Y=240;e.Human.TrackPointer(new Native.Point(10,20));e.Human.TrackPointer(new Native.Point(30,40));
         Assert(e.X==120&&e.Y==240,"Human pointer tracking must not change Agent coordinates");
         Assert(e.Human.Sequence==1,"Human pointer motion must be detected");

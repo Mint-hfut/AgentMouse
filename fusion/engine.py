@@ -1,5 +1,6 @@
 """Target-scoped Windows-MCP labels over AgentMouse observations and input."""
 import time
+from policy import require_allowed_window
 
 
 class FusionSession:
@@ -8,7 +9,7 @@ class FusionSession:
         self.observation = None
         self.busy = False
 
-    async def snapshot(self, window_id=None, use_ui_tree=True):
+    async def snapshot(self, window_id=None, use_ui_tree=False):
         if self.busy:
             raise ValueError("input_busy: wait for the active gesture or pause it")
         self.observation = None
@@ -34,6 +35,7 @@ class FusionSession:
             raise ValueError("wrong_target: the action must address the same explicit window as its image")
         if observation["result"].get("inputAllowed") is False:
             raise ValueError("unverified_frame: target has no new frame after input; stop retries")
+        require_allowed_window(observation["result"].get("window") or {})
         if (loc is None) == (label is None):
             raise ValueError("Provide exactly one of loc or label")
         if label is not None:

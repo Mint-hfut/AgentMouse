@@ -20,7 +20,7 @@ export async function prepareHost(host, directory) {
     await writeFile(join(destination,'mcp.json'),JSON.stringify(hostConfig(host,destination),null,2));
   }else{
     await writeFile(join(destination,'cordis.patch.yml'),JSON.stringify(hostConfig(host,destination),null,2));
-    await writeFile(join(destination,'package.json'),JSON.stringify({name:'dsh-agentmouse',version:'0.7.0-beta.3',private:true,dsh:{bundle:{patch:'./cordis.patch.yml'}}},null,2));
+    await writeFile(join(destination,'package.json'),JSON.stringify({name:'dsh-agentmouse',version:'0.7.0-beta.4',private:true,dsh:{bundle:{patch:'./cordis.patch.yml'}}},null,2));
   }
   await writeFile(join(destination,'setup.mjs'),`import {writeFile,rename} from 'node:fs/promises';\nimport {dirname,join} from 'node:path';\nimport {fileURLToPath} from 'node:url';\nimport {hostConfig} from './agentmouse.mjs';\nconst root=dirname(fileURLToPath(import.meta.url));\nconst file=join(root,${JSON.stringify(host==='dsh'?'cordis.patch.yml':'mcp.json')});\nawait writeFile(file+'.tmp',JSON.stringify(hostConfig(${JSON.stringify(host)},root),null,2));\nawait rename(file+'.tmp',file);\nconsole.log('Updated '+file);\n`);
   return {host,directory:destination,note:'After extraction or relocation, run node setup.mjs in this directory to regenerate local paths.'};

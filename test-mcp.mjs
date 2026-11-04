@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 let calls = [];
 const handler = createHandler(async request => {
   calls.push(request);
-  if (request.method === 'status') return { ok: true, result: { windowIdentityGuard: true, postActionFrameGuard: true, backgroundWindowCapture: true } };
+  if (request.method === 'status') return { ok: true, result: { windowIdentityGuard: true, targetQuarantine: true, postActionFrameGuard: true, backgroundWindowCapture: true } };
   return request.method === 'observe'
     ? { ok: true, result: { scope: request.capture === 'window' ? 'window' : 'desktop', windowId: '1234', observationId: 'token', screenshot: { data: 'iVBORw==', mimeType: 'image/png', x: 10, y: 20, captureMethod: request.capture === 'window' ? 'Windows.Graphics.Capture' : 'desktop' } } }
     : { ok: false, error: { code: 'paused', message: 'paused' } };
@@ -43,7 +43,7 @@ const wrong = await ask('tools/call', { name: 'pointer_click', arguments: { wind
 assert.equal(JSON.parse(wrong.result.content[0].text).code, 'wrong_target'); assert.equal(calls.length, beforeWrong);
 let unsafeCalls = 0;
 const frozen = createHandler(async request => {
-  if (request.method === 'status') return { ok: true, result: { windowIdentityGuard: true, postActionFrameGuard: true, backgroundWindowCapture: true } };
+  if (request.method === 'status') return { ok: true, result: { windowIdentityGuard: true, targetQuarantine: true, postActionFrameGuard: true, backgroundWindowCapture: true } };
   if (request.method === 'observe') return { ok: true, result: { window: { windowId: 'wechat' }, scope: 'window', inputAllowed: false, observationId: 'frozen', screenshot: { data: 'iVBORw==', mimeType: 'image/png', captureMethod: 'Windows.Graphics.Capture' } } };
   unsafeCalls++; return { ok: true, result: {} };
 });
@@ -52,7 +52,7 @@ await frozen({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'poi
 const blockedFrozen = await frozen({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'pointer_click', arguments: { windowId: 'wechat', observationId: 'frozen', x: 1, y: 2 } } });
 assert.equal(JSON.parse(blockedFrozen.result.content[0].text).code, 'unverified_frame'); assert.equal(unsafeCalls, 0);
 for (const claimed of [false, true]) {
-  const bad = createHandler(async request => request.method === 'status' ? { ok: true, result: { windowIdentityGuard: true, postActionFrameGuard: true, backgroundWindowCapture: claimed } } : { ok: true, result: { scope: 'desktop', screenshot: { data: 'iVBORw==', captureMethod: 'desktop' } } });
+  const bad = createHandler(async request => request.method === 'status' ? { ok: true, result: { windowIdentityGuard: true, targetQuarantine: true, postActionFrameGuard: true, backgroundWindowCapture: claimed } } : { ok: true, result: { scope: 'desktop', screenshot: { data: 'iVBORw==', captureMethod: 'desktop' } } });
   await bad({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } });
   const rejected = await bad({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'pointer_observe', arguments: { capture: 'window', windowId: '1234' } } });
   assert.equal(rejected.result.isError, true);

@@ -53,7 +53,7 @@ internal sealed class WindowItem {
                 if(Native.GetWindowRect(above,out b)&&b.Right>r.Left&&b.Left<r.Right&&b.Bottom>r.Top&&b.Top<r.Bottom)covering.Add(above.ToInt64().ToString());
             }
         }
-        return new {windowId=Handle.ToInt64().ToString(),title=Name,process=ProcessName,pid=Pid,className=Native.Class(Handle),ownerWindowId=Native.GetWindow(Handle,4).ToInt64().ToString(),zOrder=ZOrder,zOrderDirection="front-to-back",foreground=Native.GetForegroundWindow()==Handle,visible=visible,minimized=minimized,cloaked=hidden,canCapture=visible&&!minimized&&!hidden,bounds=new{x=r.Left,y=r.Top,width=r.Width,height=r.Height},overlappingWindowsAbove=covering,occlusionAssessment="bounding-rectangle overlap; transparent/shaped windows may differ"};
+        return new {windowId=Handle.ToInt64().ToString(),title=Name,process=ProcessName,pid=Pid,className=Native.Class(Handle),ownerWindowId=Native.GetWindow(Handle,4).ToInt64().ToString(),zOrder=ZOrder,zOrderDirection="front-to-back",foreground=Native.GetForegroundWindow()==Handle,visible=visible,minimized=minimized,cloaked=hidden,canCapture=visible&&!minimized&&!hidden,automationQuarantined=DesktopInventory.Quarantined(ProcessName),bounds=new{x=r.Left,y=r.Top,width=r.Width,height=r.Height},overlappingWindowsAbove=covering,occlusionAssessment="bounding-rectangle overlap; transparent/shaped windows may differ"};
     }
 }
 internal sealed class Observation {
@@ -174,7 +174,7 @@ internal sealed class Engine {
     internal object Status(){
         Native.Point real;bool available=Native.GetCursorPos(out real);Native.Rect bounds;object shown=null;
         if(OverlayWindow!=IntPtr.Zero&&Native.GetWindowRect(OverlayWindow,out bounds))shown=new{x=bounds.Left,y=bounds.Top,width=bounds.Width,height=bounds.Height};
-        return new{controllerVersion="0.7.0-beta.3",backgroundWindowCapture=true,windowIdentityGuard=true,postActionFrameGuard=true,windowMessageGestures=true,foregroundWindowId=Native.GetForegroundWindow().ToInt64().ToString(),windowZOrder=CaptureWindows().ConvertAll<string>(w=>w.Handle.ToInt64().ToString()),humanInputSequence=Human.Sequence,backgroundButtonHeld=MessageButtonHeld,armed=Armed,mode=Mode,scope="desktop",pointer=new{x=X,y=Y,visible=ShowPointer},
+        return new{controllerVersion="0.7.0-beta.4",backgroundWindowCapture=true,windowIdentityGuard=true,targetQuarantine=true,postActionFrameGuard=true,windowMessageGestures=true,foregroundWindowId=Native.GetForegroundWindow().ToInt64().ToString(),windowZOrder=CaptureWindows().ConvertAll<string>(w=>w.Handle.ToInt64().ToString()),humanInputSequence=Human.Sequence,backgroundButtonHeld=MessageButtonHeld,armed=Armed,mode=Mode,scope="desktop",pointer=new{x=X,y=Y,visible=ShowPointer},
         systemPointer=new{x=real.X,y=real.Y,available=available},overlayBounds=shown,message=Message,pauseShortcut=PauseShortcut,
         limitations=new[]{"后台消息点击和拖动的兼容性取决于目标程序；触摸可能影响真实指针和焦点。","不支持独立键盘、跨窗口系统拖放和独立悬停；后台滚轮需改用滚动条点击。","当前同一时刻仅支持一个 Agent 控制会话。","没有 SendInput 或真实鼠标瞬移兜底。"}};}
     internal object Dispatch(Dictionary<string,object> request){
@@ -218,6 +218,7 @@ internal sealed class Engine {
         if(windowId!=""){
             long id;if(!long.TryParse(windowId,out id)||id<=0)throw new Fault("invalid_argument","windowId 必须是有效的窗口编号。");
             IntPtr handle=new IntPtr(id);
+            uint observedPid;Native.GetWindowThreadProcessId(handle,out observedPid);if(observedPid!=0)DesktopInventory.RequireAutomationAllowed(observedPid);
             if(!Native.IsWindow(handle)||!Native.IsWindowVisible(handle)||Native.IsIconic(handle))throw new Fault("window_missing","要查看的窗口已关闭、不可见或最小化。");
             var r=Bounds(handle);region=Rectangle.Intersect(region,new Rectangle(r.Left,r.Top,r.Width,r.Height));
             var listed=Windows(Owner).Find(w=>w.Handle==handle);if(listed==null)throw new Fault("window_missing","目标窗口不在当前窗口清单内，请重新列出窗口。");window=listed.Export();
@@ -299,6 +300,7 @@ internal sealed class Engine {
     private static void ValidateTarget(ObservedWindow target){
         uint pid;Native.GetWindowThreadProcessId(target.Handle,out pid);
         if(!Native.IsWindow(target.Handle)||!Native.IsWindowVisible(target.Handle)||Native.IsIconic(target.Handle)||pid!=target.Pid||!SameBounds(Bounds(target.Handle),target.Bounds))throw new Fault("window_changed","后台目标窗口已关闭、移动、最小化或发生变化，请重新观察。");
+        DesktopInventory.RequireAutomationAllowed(pid);
         if(!Native.IsWindowEnabled(target.Handle))throw new Fault("disabled","后台窗口当前不可用，请处理其对话框。");
         int cloaked;if(Native.DwmGetWindowAttribute(target.Handle,14,out cloaked,4)==0&&cloaked!=0)throw new Fault("window_changed","后台窗口被系统隐藏，请在原桌面恢复可采集状态。");
     }
@@ -398,7 +400,7 @@ internal sealed class Engine {
         if(!FreshAfterAction(o))throw new Fault("unverified_frame","上次操作后，目标仍只返回旧画面。已阻止重复点击；请检查控件树或等待新帧，不得改点前台窗口或重新启动应用。");
         if(o.Target!=null&&mode!="background")throw new Fault("unsupported","被遮挡窗口仅支持后台消息通道；不会使用触摸或置前窗口兜底。");
         if(o.Target!=null&&scroll)throw new Fault("unsupported","后台窗口不发送可能按前台落点重定向的滚轮消息。请根据后台截图，使用 pointer_click 点击滚动条或翻页按钮。");
-        var initialTarget=Hit(o,from);foreach(var point in path)if(mode=="background"&&Hit(o,point).Handle!=initialTarget.Handle)throw new Fault("unsupported","后台拖动仅支持同一窗口内部的手势，不执行跨窗口系统拖放。");
+        var initialTarget=Hit(o,from);DesktopInventory.RequireAutomationAllowed(initialTarget.Pid);foreach(var point in path)if(mode=="background"&&Hit(o,point).Handle!=initialTarget.Handle)throw new Fault("unsupported","后台拖动仅支持同一窗口内部的手势，不执行跨窗口系统拖放。");
         WaitForIdle(generation);
         o=Validate(a);var target=Hit(o,from);Hit(o,to);
         string expected=Json.Text(a,"windowId",target.Handle.ToInt64().ToString());

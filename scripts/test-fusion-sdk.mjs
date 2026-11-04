@@ -12,7 +12,9 @@ try {
   await writeFile(join(temporary, 'sample.txt'), 'fusion-file-read-fixture');
   await client.connect(new StdioClientTransport({ command: process.execPath, args: ['fusion-entry.mjs'], cwd: resolve('.'), stderr: 'pipe' }));
   const tools = (await client.listTools()).tools;
-  assert.equal(tools.length, 27);
+  assert.equal(tools.length, 26);
+  assert.ok(!tools.some(tool=>tool.name==='PowerShell'));
+  assert.equal(tools.find(tool=>tool.name==='Snapshot').inputSchema.properties.use_ui_tree.default,false);
   for (const name of ['Snapshot','Click','Move','Scroll']) assert.ok(tools.some(tool => tool.name === name));
   assert.ok(tools.find(tool => tool.name === 'Click').inputSchema.required.includes('window_id'));
   assert.ok(tools.find(tool => tool.name === 'Click').inputSchema.required.includes('observation_id'));
@@ -26,7 +28,7 @@ try {
   }
   const unfounded = await client.callTool({ name: 'Click', arguments: { window_id: '123', observation_id: 'unknown', loc: [1,1] } });
   assert.equal(unfounded.isError, true); assert.match(JSON.stringify(unfounded.content), /stale_observation/);
-  console.log('PASS fusion real SDK: 27 tools, mandatory target/token, upstream file and display tools, running-process discovery, blocked foreground keyboard/batch calls and stale input; no GUI/input');
+  console.log('PASS fusion real SDK: 26 tools, no arbitrary PowerShell, UIA opt-in, mandatory target/token, upstream file/display tools, process discovery and blocked foreground keyboard/batch calls; no GUI/input');
 } finally {
   await client.close();
   assert.equal(dirname(resolve(temporary)), resolve(tmpdir())); assert.ok(basename(temporary).startsWith('agentmouse-fusion-sdk-'));

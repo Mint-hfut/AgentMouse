@@ -18,10 +18,10 @@ try {
   const parked=join(temporary,'original-payload-parked');assert.equal(dirname(resolve(payload)),resolve(temporary));assert.equal(dirname(resolve(parked)),resolve(temporary));await rename(payload,parked);
   const runtime=join(home,`AgentMouse/${version}-fusion`);
   await client.connect(new StdioClientTransport({command:process.execPath,args:[join(runtime,'fusion-entry.mjs')],cwd:runtime,env:{...isolatedEnv,AGENTMOUSE_HOME:join(home,'.agentmouse')},stderr:'pipe'}));
-  assert.equal((await client.listTools()).tools.length,27);
+  assert.equal((await client.listTools()).tools.length,26);
   assert.equal(client.getServerVersion().version,version);
   const result=await client.callTool({name:'App',arguments:{mode:'find',query:'node'}});assert.ok(!result.isError);
-  console.log('PASS Full ZIP -> isolated Chinese home -> bundled Python -> 27-tool MCP -> running-app query; Python/uv absent from PATH, host Python env invalid, original payload relocated; no GUI/input');
+  console.log('PASS Full ZIP -> isolated Chinese home -> bundled Python -> 26-tool MCP -> running-app query; Python/uv absent from PATH, host Python env invalid, original payload relocated; no GUI/input');
 } finally {
   await client.close();assert.equal(dirname(resolve(temporary)),resolve(tmpdir()));assert.ok(basename(temporary).startsWith('agentmouse-fusion-zip-'));await rm(temporary,{recursive:true,force:true,maxRetries:10,retryDelay:200});
 }

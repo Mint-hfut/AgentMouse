@@ -1,5 +1,7 @@
 # Modules and editions
 
+> 当前有未解决的微信卡死事件。请保持已安装插件禁用，不对真实微信重试。防护补丁默认关闭 UIA，移除任意 PowerShell，并将 Full 调整为 26 个工具；这是临时隔离，尚未证明根因修复。详见 [事件记录](incidents/2026-11-04-wechat-hang.md)。
+
 AgentMouse Core 是可独立运行、构建、安装和测试的产品。AgentMouse Full 在 Core 的稳定输入接口上加适配层，不修改 Core 的鼠标实现。
 
 ```mermaid
@@ -26,7 +28,7 @@ flowchart LR
 ## 分发边界
 
 - **Core ZIP**：11 工具，包含我们的 C#/Node/浏览器代码；没有融合 `.py`、Windows-MCP 源码、Python 运行时。
-- **Full ZIP**：Core + Full 适配层 + Windows-MCP + 自带 Python。27 个工具名，其中共享键盘/批量输入兼容接口明确返回不支持。
+- **Full ZIP**：Core + Full 适配层 + Windows-MCP + 自带 Python。26 个工具名，其中共享键盘/批量输入兼容接口明确返回不支持。
 - 两版默认加载各自引擎。安装器通过包内 `agentmouseEdition` 识别版本，不依赖用户猜参数。
 - 两版使用同一插件标识，切换版本是更新同一插件；不会让两个鼠标服务同时争用输入。客户端刷新后生效。
 - Core 能单独构建：`scripts/build-release.ps1 -Edition Core`，无需 Python/uv。构建 Full 才需要打包工具链。

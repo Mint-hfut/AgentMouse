@@ -1,6 +1,6 @@
 {
   "name": "agentmouse",
-  "version": "0.7.0-beta.3",
+  "version": "0.7.0-beta.4",
   "private": true,
   "type": "module",
   "description": "Background computer use for AI agents with an independent pointer, MCP server, Agent Skills, and multi-agent-host installers.",
@@ -51,7 +51,8 @@
     "fusion/engine.py",
     "fusion/server.py",
     "fusion/controls.py",
-    "vendor/windows-mcp/src/**/*.py"
+    "vendor/windows-mcp/src/**/*.py",
+    "fusion/policy.py"
   ],
   "engines": {
     "node": ">=18"

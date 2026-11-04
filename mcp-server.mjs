@@ -49,7 +49,7 @@ export function createHandler(call) {
       const requested = request.params?.protocolVersion;
       if (typeof requested !== 'string') return error(-32602, 'Missing protocolVersion');
       initialized = true;
-      return reply({ protocolVersion: versions.includes(requested) ? requested : '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'agentmouse', version: '0.7.0-beta.3' } });
+      return reply({ protocolVersion: versions.includes(requested) ? requested : '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'agentmouse', version: '0.7.0-beta.4' } });
     }
     if (!initialized) return error(-32000, 'Initialize first');
     if (request.method === 'ping') return reply({});
@@ -76,7 +76,7 @@ export function createHandler(call) {
       if (tool.name === 'pointer_observe' && args.capture === 'window') {
         const controller = await call({ method: 'status' });
         if (!controller.ok) return reply({ isError: true, content: [{ type: 'text', text: JSON.stringify(controller.error) }] });
-        if (!args.windowId?.startsWith('browser:') && (controller.result?.windowIdentityGuard !== true || controller.result?.postActionFrameGuard !== true)) return reply({ isError: true, content: [{ type: 'text', text: JSON.stringify({ code: 'upgrade_required', message: 'Close the older AgentMouse controller and open beta.3 or newer for window identity/frozen-frame guards.' }) }] });
+        if (!args.windowId?.startsWith('browser:') && (controller.result?.windowIdentityGuard !== true || controller.result?.postActionFrameGuard !== true || controller.result?.targetQuarantine !== true)) return reply({ isError: true, content: [{ type: 'text', text: JSON.stringify({ code: 'upgrade_required', message: 'Close the older AgentMouse controller and open beta.4 or newer for incident quarantine and window/frame guards.' }) }] });
         if (controller.result?.backgroundWindowCapture !== true) return reply({ isError: true, content: [{ type: 'text', text: JSON.stringify({ code: 'upgrade_required', message: 'The running controller does not support real background capture. Close the old AgentMouse controller and reopen the updated version; no desktop-crop fallback was used.' }) }] });
       }
       const response = await call({ method: tool.name.slice('pointer_'.length), ...args });

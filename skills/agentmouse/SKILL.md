@@ -7,6 +7,12 @@ description: Use AgentMouse MCP for background Windows/browser computer use with
 
 Discover the actual tool namespace from the host; do not invent one. The local controller requires Windows x64 and Node 18+. Native HWND capture requires Windows 10 1903+. Screenshot-guided tasks need an image-capable model.
 
+## Active incident containment
+
+WeChat/Weixin/WeChatAppEx automation is quarantined after a reported application hang. Do not capture its HWND, query its UIAutomation provider or send input. Process/window discovery is still allowed. Do not restore, raise, relaunch or bypass this with host Bash, PowerShell, temporary scripts, SendInput or mouse_event. Report the unsupported task and leave the recovered app alone. Root cause is unconfirmed; fixture success is not a WeChat compatibility pass.
+
+Full no longer exposes arbitrary PowerShell execution. Snapshot defaults to image-only; set `use_ui_tree=true` only for an explicitly selected, non-quarantined target when controls are actually needed. Inspect `providerSucceeded/error`, and never interpret a failed provider's empty tree as success.
+
 ## Windows-MCP fusion engine
 
 If the catalog exposes `Snapshot`, `Screenshot`, `Click`, `Move`, and `Scroll`, use this engine instead of the native-only `pointer_observe/click/drag/scroll` names below. The lifecycle/discovery tools `pointer_open/status/pause/list_apps/list_windows/inspect_window` remain available.
@@ -17,7 +23,7 @@ If the catalog exposes `Snapshot`, `Screenshot`, `Click`, `Move`, and `Scroll`, 
 4. Drag with `Move(drag=True, from_loc=[x,y], loc=[endX,endY], duration=0.65, window_id=..., observation_id=...)`; optional `path` is a list of intermediate `[x,y]` points. The real cursor is never the implicit start. Browser wheel uses `Scroll` with an explicit loc/label and direction.
 5. Reobserve and verify a changed control/image. `inputDelivered` is not business success. Pause after work or interruption.
 
-Windows-MCP's `FileSystem`, `Process`, `Registry`, `PowerShell`, HTTP `Scrape`, `DisplayInventory`, `Clipboard`, and `Notification` are retained. File/command/clipboard operations act on the real shared system. `WaitFor` reads controls in one native target; it does not create an input observation.
+Windows-MCP's `FileSystem`, `Process`, `Registry`, HTTP `Scrape`, `DisplayInventory`, `Clipboard`, and `Notification` are retained. File/clipboard operations act on the real shared system. `WaitFor` reads controls in one non-quarantined native target; it does not create an input observation.
 
 Independent keyboard remains unavailable: `Type`, `Shortcut`, Ctrl/batch selection and `MultiEdit` return explicit errors. `App` discovers apps/windows; automatic launch/resize/switch, foreground DOM scraping, middle click, native hover and horizontal/covered-native wheel are not substituted with physical input. Never work around these limits by injecting foreground keys/mouse while the user works elsewhere.
 

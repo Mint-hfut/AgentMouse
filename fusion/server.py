@@ -19,6 +19,7 @@ from fastmcp.tools import ToolResult
 from mcp.types import ImageContent, TextContent
 from client import AgentMouseClient
 from engine import FusionSession
+from policy import require_allowed_window
 
 
 def json_errors(function):
@@ -36,7 +37,17 @@ def json_errors(function):
 def create_server(runtime, node, version):
     client = AgentMouseClient(node, runtime)
 
+    async def check_target(window_id):
+        if window_id.startswith("browser:"):
+            return
+        windows=await client.call("list_windows")
+        selected=next((window for window in windows if window["windowId"]==window_id),None)
+        if selected is None:
+            raise ValueError("window_missing: list target windows again")
+        require_allowed_window(selected)
+
     async def controls(window_id):
+        await check_target(window_id)
         process = await asyncio.create_subprocess_exec(
             sys.executable, "-B", "-X", "utf8", str(runtime / "fusion/controls.py"), window_id,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
@@ -75,7 +86,7 @@ def create_server(runtime, node, version):
     ))
 
     # Keep upstream system tools; do not start its physical-input hooks, overlay or ownership controller.
-    from windows_mcp.tools import clipboard, display, filesystem, notification, process, registry, scrape, shell
+    from windows_mcp.tools import clipboard, display, filesystem, notification, process, registry, scrape
 
     class ReadOnlyDesktop:
         def __init__(self):
@@ -90,7 +101,7 @@ def create_server(runtime, node, version):
             return getattr(self.desktop, name)
 
     desktop = ReadOnlyDesktop()
-    for module in [clipboard, display, filesystem, notification, process, registry, scrape, shell]:
+    for module in [clipboard, display, filesystem, notification, process, registry, scrape]:
         module.register(mcp, get_desktop=lambda: desktop, get_analytics=lambda: None)
 
     def image_result(result):
@@ -100,12 +111,16 @@ def create_server(runtime, node, version):
 
     @mcp.tool(name="Snapshot", description="Real background HWND/browser image plus target-scoped Windows-MCP UIAutomation control labels. With no window_id, desktop overview only. Native locs are physical desktop pixels; browser locs are viewport CSS pixels. Use the returned observationId as observation_id; labels belong only to that observation. No activation/restore. Reobserve after every gesture.")
     @json_errors
-    async def snapshot(window_id: str | None = None, use_ui_tree: bool = True):
+    async def snapshot(window_id: str | None = None, use_ui_tree: bool = False):
+        if window_id:
+            await check_target(window_id)
         return image_result(await session.snapshot(window_id, use_ui_tree))
 
     @mcp.tool(name="Screenshot", description="Real background image for window_id; without it, desktop overview only. Returns observationId and coordinateSpace. No foreground activation; requires a fresh explicit target for input.")
     @json_errors
     async def screenshot(window_id: str | None = None):
+        if window_id:
+            await check_target(window_id)
         return image_result(await session.snapshot(window_id, False))
 
     @mcp.tool(name="Click", description="Background click/double-click/long-press at loc or target-scoped Snapshot label. Requires exact window_id and observation_id. clicks=0 is browser hover only. No physical mouse fallback. inputDelivered is not business success.")
