@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { navigateFixture } from './scripts/fixture-navigation.mjs';
+let navigations=0,waits=0;
+await navigateFixture({navigate:async()=>{navigations++;return{errorText:'net::ERR_ABORTED'};},ready:async()=>navigations===2,waitReady:async()=>{throw new Error('not ready');},pause:async()=>{}});
+assert.equal(navigations,2);
+navigations=0;await navigateFixture({navigate:async()=>{navigations++;return{errorText:'net::ERR_ABORTED'};},ready:async()=>true,waitReady:async()=>{},pause:async()=>{}});assert.equal(navigations,1);
+await assert.rejects(navigateFixture({navigate:async()=>({errorText:'net::ERR_ABORTED'}),ready:async()=>false,waitReady:async()=>{waits++;throw new Error('fixture title/url still incorrect');},pause:async()=>{}}),/title\/url still incorrect/);assert.equal(waits,1);
+await assert.rejects(navigateFixture({navigate:async()=>({errorText:'net::ERR_CONNECTION_REFUSED'}),ready:async()=>true,waitReady:async()=>{},pause:async()=>{}}),/CONNECTION_REFUSED/);
+await assert.rejects(navigateFixture({navigate:async()=>({}),ready:async()=>false,waitReady:async()=>false,pause:async()=>{}}),/URL\/title was not verified/);
+console.log('PASS disposable fixture startup: bounded retry for aborted setup navigation, exact ready-state required, persistent abort/network failure rejected; no input retries');

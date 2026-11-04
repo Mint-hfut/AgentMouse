@@ -59,7 +59,7 @@
   "scripts": {
     "start": "node mcp-server.mjs",
     "build": "node scripts/build-native.mjs",
-    "test": "node test-mcp.mjs && node test-plugin.mjs && node test-install.mjs && node test-plugins-install.mjs && node test-fusion-install.mjs && node test-browser-pointer.mjs && node test-browser-bridge.mjs && node test-bootstrap.mjs && node test-sdk.mjs",
+    "test": "node test-fixture-navigation.mjs && node test-mcp.mjs && node test-plugin.mjs && node test-install.mjs && node test-plugins-install.mjs && node test-fusion-install.mjs && node test-browser-pointer.mjs && node test-browser-bridge.mjs && node test-bootstrap.mjs && node test-sdk.mjs",
     "test:state": "node scripts/test-native.mjs",
     "test:sdk": "node test-sdk.mjs",
     "test:routing": "node scripts/test-native.mjs --routing",

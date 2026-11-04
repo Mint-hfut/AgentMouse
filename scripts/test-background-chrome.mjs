@@ -12,6 +12,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { serve, callApp } from '../mcp-server.mjs';
 import { createBrowserBridge } from '../bridge-server.mjs';
 import { bridgeRequest } from '../bridge-client.mjs';
+import { navigateFixture } from './fixture-navigation.mjs';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 if (process.argv[2] === '--serve') {
@@ -73,9 +74,10 @@ if (process.argv[2] === '--serve') {
     const sessionId = extensionTest ? null : (await send('Target.attachToTarget', { targetId, flatten: true })).sessionId;
     if (extensionTest) {
       const setupSession=(await send('Target.attachToTarget',{targetId,flatten:true})).sessionId;
+      await send('Page.enable',{},setupSession);
       await send('Runtime.runIfWaitingForDebugger',{},setupSession);
-      const navigation=await send('Page.navigate',{url:fixtureUrl},setupSession);
-      if(navigation.errorText)throw new Error('Fixture navigation failed: '+navigation.errorText);
+      const ready=async()=>{const {targetInfo}=await send('Target.getTargetInfo',{targetId});return targetInfo.url===fixtureUrl&&targetInfo.title.startsWith('APCOMPAT-'+marker);};
+      await navigateFixture({navigate:()=>send('Page.navigate',{url:fixtureUrl},setupSession),ready,waitReady:()=>waitFor(ready),pause:delay});
       await send('Target.detachFromTarget',{sessionId:setupSession});
     }
     try { await waitFor(async () => { const info = await send('Target.getTargetInfo', { targetId }); return info.targetInfo.title.startsWith('APCOMPAT-' + marker) ? info : null; }); }
