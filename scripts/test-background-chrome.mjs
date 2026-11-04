@@ -68,7 +68,7 @@ if (process.argv[2] === '--serve') {
     socket.addEventListener('message', event => { const value = JSON.parse(event.data); pending.get(value.id)?.(value); pending.delete(value.id); });
     const browser = await send('Browser.getVersion'); console.log(JSON.stringify({ browser, compatibilityFlags }));
     const dpi = before.dpiScale;
-    const { targetId } = await send('Target.createTarget', { url: fixtureUrl, newWindow: true, background: true, left: Math.ceil((before.bounds.x + 32) / dpi), top: Math.ceil((before.bounds.y + 48) / dpi), width: Math.floor(Math.min(900, before.bounds.width - 64) / dpi), height: Math.floor(Math.min(650, before.bounds.height - 96) / dpi) });
+    const { targetId } = await send('Target.createTarget', { url: extensionTest ? 'about:blank' : fixtureUrl, newWindow: true, background: true, left: Math.ceil((before.bounds.x + 32) / dpi), top: Math.ceil((before.bounds.y + 48) / dpi), width: Math.floor(Math.min(900, before.bounds.width - 64) / dpi), height: Math.floor(Math.min(650, before.bounds.height - 96) / dpi) });
     assert.equal(foreground().windowId, before.windowId, 'Chrome setup activated its window; no input test was run');
     const sessionId = extensionTest ? null : (await send('Target.attachToTarget', { targetId, flatten: true })).sessionId;
     if (extensionTest) {
@@ -96,7 +96,7 @@ if (process.argv[2] === '--serve') {
       const tabs=(await bridgeRequest(testConfig,'/call',{method:'list_tabs'})).result;
       const tab=tabs.find(tab=>tab.title.startsWith('APCOMPAT-'+marker));assert.ok(tab,'The real extension did not list the fixture tab');ready.windowId='browser:'+tab.id;
     }
-    client = new Client({ name: 'agentmouse-background-chrome', version: '0.7.0-beta.1' });
+    client = new Client({ name: 'agentmouse-background-chrome', version: '0.7.0-beta.3' });
     let serverArgs = extensionTest ? [join(root,'scripts/extension-test-server.mjs'),headless?'headless':pipe] : nativeMessages ? [fileURLToPath(import.meta.url), '--serve', pipe] : [join(root, 'scripts/browser-test-server.mjs'), 'ws://127.0.0.1:' + port + endpoint, targetId, headless ? 'headless' : pipe];
     if (fusionTest) {
       const config = JSON.parse(await readFile(join(process.env.AGENTMOUSE_HOME || join(homedir(),'.agentmouse'),'fusion/config.json'),'utf8'));

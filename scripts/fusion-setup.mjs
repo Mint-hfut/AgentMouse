@@ -5,9 +5,22 @@ import { join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-export async function setupFusion({ sourceRoot, home = homedir(), env = process.env, dryRun = false }) {
+export async function setupFusion({ sourceRoot, home = homedir(), env = process.env, dryRun = false, preferBundled = true }) {
   let directory = resolve(env.AGENTMOUSE_HOME || join(home, '.agentmouse'), 'fusion');
-  if (dryRun) return { engine: 'fusion', directory, requires: 'uv; Python 3.14 is installed automatically', dryRun: true };
+  const bundled = join(sourceRoot, 'python-runtime');
+  if (dryRun) return { engine: 'fusion', directory, runtimeKind: existsSync(join(bundled,'RUNTIME.json')) ? 'bundled' : 'source-build', dryRun: true };
+  if (preferBundled && existsSync(join(bundled,'RUNTIME.json'))) {
+    const metadata = JSON.parse(await readFile(join(bundled,'RUNTIME.json'),'utf8'));
+    if (!/^[a-f0-9]{64}$/.test(metadata.id)) throw new Error('Invalid bundled Python manifest.');
+    await mkdir(directory,{recursive:true});directory=await realpath(directory);
+    const runtime=join(directory,'runtime-'+metadata.id.slice(0,20));
+    let installed;try{installed=JSON.parse(await readFile(join(runtime,'RUNTIME.json'),'utf8'));}catch(error){if(error.code!=='ENOENT')throw error;}
+    if(installed?.id!==metadata.id)await cp(bundled,runtime,{recursive:true});
+    const python=join(runtime,'python.exe');
+    execFileSync(python,['-B','-c','import fastmcp,windows_mcp,win32gui,pythoncom;import sys;assert sys.flags.isolated;print("OK")'],{windowsHide:true,timeout:15000,stdio:'pipe'});
+    await writeFile(join(directory,'config.json'),JSON.stringify({python,runtimeKind:'bundled',runtimeId:metadata.id,windowsMcpVersion:'0.8.8'},null,2));
+    return {engine:'fusion',directory,python,runtimeKind:'bundled',requiresPythonInstall:false,requiresUv:false};
+  }
   let uv = join(home, '.local/bin/uv.exe');
   if (!existsSync(uv)) {
     try { uv = execFileSync('where.exe', ['uv.exe'], { env, encoding: 'utf8', windowsHide: true }).trim().split(/\r?\n/)[0]; }
@@ -19,6 +32,11 @@ export async function setupFusion({ sourceRoot, home = homedir(), env = process.
   for (const entry of ['src', 'pyproject.toml', 'uv.lock', 'README.md', 'LICENSE.md']) await cp(join(sourceRoot, 'vendor/windows-mcp', entry), join(project, entry), { recursive: true, filter: file => !/(__pycache__|\.pyc$|\.egg-info)/.test(file) });
   const python = join(project, '.venv/Scripts/python.exe');
   const run = (command, args) => execFileSync(command, args, { cwd: project, env: { ...env, UV_LINK_MODE: 'copy', PYTHONIOENCODING: 'utf-8' }, encoding: 'utf8', windowsHide: true, timeout: 300000, stdio: ['ignore', 'pipe', 'pipe'] });
+  let interpreter;
+  try { interpreter = run(uv, ['python', 'find', '--system', '--no-project', '3.14']).trim(); }
+  catch { run(uv, ['python', 'install', '3.14']); interpreter = run(uv, ['python', 'find', '--system', '--no-project', '3.14']).trim(); }
+  // Standard venv avoids uv's Windows PE-resource rewriting when creating its Python launcher.
+  if (!existsSync(python)) run(interpreter, ['-m', 'venv', '--without-pip', join(project, '.venv')]);
   for (let attempt = 0; ; attempt++) {
     try { run(uv, ['sync', '--python', '3.14', '--frozen', '--no-dev']); break; }
     catch (error) {
@@ -33,6 +51,11 @@ export async function setupFusion({ sourceRoot, home = homedir(), env = process.
   run(python, ['-c', 'import fastmcp, windows_mcp, win32gui; print("OK")']);
   await writeFile(join(directory, 'config.json'), JSON.stringify({ python, project, windowsMcpVersion: '0.8.8' }, null, 2));
   return { engine: 'fusion', directory, python, windowsMcpVersion: '0.8.8', mouse: 'AgentMouse background engine', independentKeyboard: false };
+}
+
+export async function copyFusionRuntime(sourceRoot, runtimeRoot) {
+  for (const file of ['fusion-entry.mjs','fusion-worker.mjs','THIRD_PARTY_NOTICES.md']) await cp(join(sourceRoot,file),join(runtimeRoot,file));
+  await cp(join(sourceRoot,'fusion'),join(runtimeRoot,'fusion'),{recursive:true,filter:file=>!/__pycache__|\.pyc$/.test(file)});
 }
 
 export async function configureFusion(root) {

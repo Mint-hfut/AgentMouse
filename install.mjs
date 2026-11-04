@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { existsSync } from 'node:fs';
-import { mkdir, realpath } from 'node:fs/promises';
+import { mkdir, realpath, readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -9,6 +9,7 @@ import { createInterface } from 'node:readline/promises';
 
 const root = dirname(fileURLToPath(import.meta.url));
 try {
+  const edition = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).agentmouseEdition;
   const options = {};
   for (let i = 2; i < process.argv.length; i++) {
     const key = process.argv[i];
@@ -17,6 +18,9 @@ try {
     else throw new Error('Usage: node install.mjs [--agent claude-code|codex|zcode|workbuddy|dsh|all] [--mode auto|mcp] [--profile web] [--dry-run] [--home path] [--install-dir path]');
   }
   if (process.platform !== 'win32' || process.arch !== 'x64' || Number(process.versions.node.split('.')[0]) < 18) throw new Error('AgentMouse requires Windows x64 and Node.js 18+.');
+  if (!options.engine && ['core','full'].includes(edition)) options.engine = edition === 'full' ? 'fusion' : 'native';
+  if (edition === 'core' && options.engine === 'fusion') throw new Error('This is AgentMouse Core. Download AgentMouse Full for Windows-MCP integration.');
+  if (edition === 'full' && options.engine === 'fusion' && !existsSync(join(root,'python-runtime/RUNTIME.json'))) throw new Error('The Full package is incomplete: bundled Python is missing. Re-extract the complete Full ZIP.');
   if (!options.agent) {
     if (!process.stdin.isTTY) throw new Error('Use --agent codex (or another supported agent) for unattended installation.');
     const terminal = createInterface({ input: process.stdin, output: process.stdout });
@@ -42,7 +46,7 @@ try {
   if (options.browser && !['extension', 'none'].includes(options.browser)) throw new Error('--browser must be extension or none.');
   if (!options.dryRun && (!existsSync(join(root, 'dist/AgentMouse.exe')) || !existsSync(join(root, 'dist/AgentMouse.Cli.exe')))) (await import('./scripts/build-native.mjs')).buildNative(root);
   const home = options.home ? resolve(options.home) : homedir();
-  let runtimeRoot = resolve(options['install-dir'] || join(options.home ? home : (process.env.LOCALAPPDATA || join(home, 'AppData/Local')), 'AgentMouse/0.7.0-beta.1' + (engine === 'fusion' ? '-fusion' : '')));
+  let runtimeRoot = resolve(options['install-dir'] || join(options.home ? home : (process.env.LOCALAPPDATA || join(home, 'AppData/Local')), 'AgentMouse/0.7.0-beta.3' + (engine === 'fusion' ? '-fusion' : '')));
   // Packaged Windows hosts can redirect LocalAppData; persist the physical path for other processes.
   if (!options.dryRun) { await mkdir(runtimeRoot, { recursive: true }); runtimeRoot = await realpath(runtimeRoot); }
   const env = options.home ? { ...process.env, CODEX_HOME: join(home, '.codex'), ZCODE_STORAGE_DIR: join(home, '.zcode'), CLAUDE_CONFIG_DIR: join(home, '.claude'), DSH_HOME: join(home, '.dsh'), AGENTMOUSE_HOME: join(home, '.agentmouse') } : process.env;

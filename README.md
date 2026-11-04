@@ -10,15 +10,26 @@ For web tasks, **Browser Bridge** reads real tab images and sends coordinate-bas
 
 **Beta:** the fusion server passed native Windows control-label-to-background-input integration and ten covered-Chrome desktop checks. [Fusion desktop evidence](docs/test-results/fusion-desktop-2026-11-04.json). This does not guarantee every app or real CAPTCHA accepts automation.
 
+## Two independent editions
+
+[Core ZIP](https://github.com/Mint-hfut/AgentMouse/releases/download/v0.7.0-beta.3/AgentMouse-Core-0.7.0-beta.3-windows-x64.zip) · [Full ZIP](https://github.com/Mint-hfut/AgentMouse/releases/download/v0.7.0-beta.3/AgentMouse-Full-0.7.0-beta.3-windows-x64.zip)
+
+| Edition | Contents | Python / Windows-MCP | MCP |
+|---|---|---|---|
+| **AgentMouse Core** | Our independent pointer, capture, target guards, MCP/plugins/skills | Neither included nor required | 11 tools |
+| **AgentMouse Full** | Core + Windows-MCP system/control services + fusion adapter | Bundled Python and dependencies; no separate install | 27 tool names |
+
+Core builds and runs independently. Full calls Core through an adapter. [Module boundaries and contributions](docs/architecture.md). Independent keyboard/batch-input compatibility interfaces still return explicit unsupported errors.
+
 ## Windows-MCP fusion
 
 Fusion combines Windows-MCP system tools/target-scoped controls with AgentMouse background capture/input in one **27-tool MCP server**. Native Windows label-to-input integration and ten covered-Chrome desktop cases passed. [Fusion setup, capabilities and limits](docs/fusion.md).
 
 ## Install
 
-Requires Windows x64, Node.js **18+ x64** with npm and .NET Framework. Fusion also needs [uv](https://docs.astral.sh/uv/getting-started/installation/); Python 3.14 and locked dependencies are prepared automatically. Native-only mode does not need Python. Native covered-window capture requires Windows 10 1903+.
+Requires Windows x64, Node.js **18+ x64** with npm and .NET Framework. Neither release requires a separate Python/uv installation: Core uses no Python, and Full bundles an isolated runtime. Developers building Full from source need uv. Native covered-window capture requires Windows 10 1903+.
 
-Extract the [Windows release ZIP](https://github.com/Mint-hfut/AgentMouse/releases), double-click **`install.cmd`**, and select the engine and agents. From source:
+Extract the [Windows release ZIP](https://github.com/Mint-hfut/AgentMouse/releases), double-click **`install.cmd`**, and select your agents; each package defaults to its own Core/Full engine. From source:
 
 ```powershell
 git clone https://github.com/Mint-hfut/AgentMouse.git
@@ -102,7 +113,7 @@ Desktop non-interference, actual-client native loading and component tests are s
 
 ## Configuration and removal
 
-Runtime: `%LOCALAPPDATA%\AgentMouse\0.7.0-beta.1` (fusion adds a `-fusion` suffix; physical path resolved for packaged Windows hosts). Browser pairing: `~/.agentmouse/browser`, with a per-user local token and authenticated loopback-only service. Generated secrets/private profiles stay outside the repo. Existing settings are retained with backups under the runtime's `backups/`.
+Runtime: `%LOCALAPPDATA%\AgentMouse\0.7.0-beta.3` (fusion adds a `-fusion` suffix; physical path resolved for packaged Windows hosts). Browser pairing: `~/.agentmouse/browser`, with a per-user local token and authenticated loopback-only service. Generated secrets/private profiles stay outside the repo. Existing settings are retained with backups under the runtime's `backups/`.
 
 MCP-only paths: Claude `~/.claude.json`, Codex `~/.codex/config.toml`, ZCode `~/.zcode/cli/config.json`, WorkBuddy `~/.workbuddy/mcp.json`, DSH `~/.dsh/profiles/<profile>/cordis.patch.yml`. Codex native upgrades relocate only AgentMouse's own marketplace when the versioned source changes. Native installer failures report possible partial completion; MCP-only settings writes support rollback.
 

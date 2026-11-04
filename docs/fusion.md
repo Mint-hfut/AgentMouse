@@ -4,16 +4,16 @@
 
 ## 安装
 
-需要 Windows x64、Node 18+ 和 [uv](https://docs.astral.sh/uv/getting-started/installation/)。安装器自动准备 Python 3.14 和锁定的 Python 依赖，保留 Windows-MCP 的 MIT 许可证。首次安装需要联网。
+下载 **AgentMouse Full**：Windows x64、Node 18+ 即可。Full ZIP 自带隔离的 Python 3.14 和全部锁定依赖，用户无需安装 Python 或 uv，安装器不下载 Python 依赖。开发者从源码构建 Full 时才需要 uv。Windows-MCP 的 MIT 与 Python/依赖许可证均保留。
 
 ```powershell
 .\install.cmd --engine fusion --agent codex,zcode
 .\install.cmd --engine fusion --agent all
 ```
 
-交互安装默认推荐融合模式；`--engine native` 保留原 11 工具的轻量模式，不需要 Python/uv。没有指定 `--engine` 的非交互命令维持原生模式，以兼容已有脚本。刷新或重启所选 Agent，融合模式应看到 **27 个工具**。
+Full 包默认融合模式，Core 包默认原生模式；`--engine native` 保留原 11 工具的轻量模式，不需要 Python/uv。源码目录的非交互命令默认原生模式；发行包按自身 Core/Full 标识选择。刷新或重启所选 Agent，融合模式应看到 **27 个工具**。
 
-Python 环境在 `~/.agentmouse/fusion/windows-mcp/.venv`；所选 Agent 的插件/MCP 入口改为 `fusion-entry.mjs`。控制器仍需由用户启用输入，浏览器仍需加载生成的 Browser Bridge 扩展。不会自动启动、登录或把业务应用置前。
+打包的 Python 位于用户 `~/.agentmouse/fusion/runtime-<content-id>`；所选 Agent 的插件/MCP 入口改为 `fusion-entry.mjs`。控制器仍需由用户启用输入，浏览器仍需加载生成的 Browser Bridge 扩展。不会自动启动、登录或把业务应用置前。
 
 ## 能力范围
 
@@ -70,7 +70,7 @@ node scripts/test-background-chrome.mjs --headless-test --fusion-test
 
 ## English
 
-One MCP server exposes 27 tools: Windows-MCP system services and target-scoped UIAutomation, plus AgentMouse-only background capture/input. Install with `install.cmd --engine fusion --agent codex,zcode`; uv is required and Python/dependencies are prepared automatically. Interactive installation recommends fusion; existing unattended commands default to native.
+One MCP server exposes 27 tools: Windows-MCP system services and target-scoped UIAutomation, plus AgentMouse-only background capture/input. Install with `install.cmd --engine fusion --agent codex,zcode`; the Full ZIP bundles Python and dependencies, so users need neither Python nor uv installed. Core and Full packages select their own engine by default. Only developers building Full from source need uv.
 
 Mouse actions require the exact `window_id` and fresh `observation_id`; labels belong to one target observation. Physical keyboard, foreground App launching/switching, Ctrl batches, middle click, horizontal wheel, native hover and global foreground DOM scraping are not enabled. There is no physical-input fallback. System tools and clipboard remain shared Windows operations.
 

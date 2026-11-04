@@ -18,21 +18,25 @@ jobs:
         run: |
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
           if ($env:GITHUB_REF_NAME -ne "v$version") { throw 'Tag must match package.json version.' }
+      - name: Install uv for building the bundled Python runtime
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+        with:
+          version: '0.13.7'
       - name: Build and test distributable
         run: ./scripts/build-release.ps1
       - name: Verify packaged installation
         run: ./scripts/test-release.ps1
+      - name: Verify edition module boundaries
+        run: node scripts/test-editions.mjs
       - name: Verify real browser-extension gesture path
         run: |
           $env:AGENTMOUSE_CHROME = ./scripts/get-test-chrome.ps1
           node scripts/test-background-chrome.mjs --headless-test --extension-bridge-test
           if ($LASTEXITCODE -ne 0) { throw 'Browser-extension component tests failed.' }
-      - name: Install uv for fusion
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
-        with:
-          version: '0.13.7'
       - name: Verify Windows-MCP fusion
         run: |
+          node scripts/test-fusion-package.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Fresh packaged fusion installation failed.' }
           node scripts/fusion-setup.mjs
           if ($LASTEXITCODE -ne 0) { throw 'Fusion setup failed.' }
           node scripts/test-fusion.mjs

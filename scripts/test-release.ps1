@@ -1,8 +1,8 @@
-param([switch]$NativeClients)
+param([switch]$NativeClients, [ValidateSet('Core','Full')][string]$Edition='Core')
 $ErrorActionPreference = 'Stop'
 $projectDir = Split-Path -Parent $PSScriptRoot
 $version = (Get-Content -LiteralPath (Join-Path $projectDir 'package.json') -Raw | ConvertFrom-Json).version
-$archivePath = Join-Path $projectDir "release/AgentMouse-$version-windows-x64.zip"
+$archivePath = Join-Path $projectDir "release/AgentMouse-$Edition-$version-windows-x64.zip"
 $expected = ((Get-Content -LiteralPath "$archivePath.sha256" -Raw) -split ' ')[0]
 if ((Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) { throw 'Release checksum mismatch.' }
 $testRoot = [System.IO.Path]::GetFullPath((Join-Path ([System.IO.Path]::GetTempPath()) ('agentmouse-zip-' + [guid]::NewGuid().ToString('N'))))

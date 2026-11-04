@@ -3,7 +3,7 @@
   "description": "Background computer use without taking over your mouse.",
   "plugins": [{
     "name": "agentmouse",
-    "version": "0.7.0-beta.1",
+    "version": "0.7.0-beta.3",
     "description": "Windows MCP tools, independent Agent pointer, skills and commands.",
     "source": "./",
     "category": "Productivity"

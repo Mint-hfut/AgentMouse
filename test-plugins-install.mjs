@@ -38,6 +38,7 @@ try {
     return run(exe, args, settings);
   } });
   assert.ok(upgradeCalls.some(args => args.join(' ') === 'plugin marketplace remove agentmouse'));
+  assert.ok(upgradeCalls.some(args => args.join(' ') === 'plugin remove agentmouse@agentmouse --json'));
   let upgraded = false;const zcodeUpgrade=[];
   await installPlugins({ ...options, agents:['zcode'], run:(_exe,args)=>{
     zcodeUpgrade.push(args);

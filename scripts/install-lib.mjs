@@ -104,14 +104,20 @@ async function destinationPath(path) {
   try { const info = await lstat(path); return info.isSymbolicLink() ? await realpath(path) : path; }
   catch (error) { if (error.code === 'ENOENT') return path; throw error; }
 }
-export async function copyRuntime(sourceRoot, runtimeRoot) {
-  const files = ['LICENSE', 'THIRD_PARTY_NOTICES.md', 'package.json', 'fusion-entry.mjs', 'fusion-worker.mjs', 'mcp-server.mjs', 'agentmouse.mjs', 'browser-router.mjs', 'bridge-client.mjs', 'browser-pointer.mjs', 'bridge-server.mjs', 'scripts/browser-setup.mjs', 'scripts/bridge-daemon.mjs', 'plugin.json', 'mcp.json', '.mcp.json', 'scripts/build-native.mjs'];
-  for (const folder of ['skills', 'commands', 'assets', 'adapters', 'fusion', 'browser-extension', '.claude-plugin', '.codex-plugin', '.zcode-plugin']) for (const file of await filesUnder(join(sourceRoot, folder))) if (!/(__pycache__|\.pyc$)/.test(file)) files.push(join(folder, file));
+export async function copyRuntime(sourceRoot, runtimeRoot, { engine = 'native' } = {}) {
+  const files = ['LICENSE', 'package.json', 'mcp-server.mjs', 'agentmouse.mjs', 'browser-router.mjs', 'bridge-client.mjs', 'browser-pointer.mjs', 'bridge-server.mjs', 'scripts/browser-setup.mjs', 'scripts/bridge-daemon.mjs', 'plugin.json', 'mcp.json', '.mcp.json', 'scripts/build-native.mjs'];
+  for (const folder of ['skills', 'commands', 'assets', 'adapters', 'browser-extension', '.claude-plugin', '.codex-plugin', '.zcode-plugin']) for (const file of await filesUnder(join(sourceRoot, folder))) files.push(join(folder, file));
   files.push('dist/AgentMouse.exe', 'dist/AgentMouse.Cli.exe');
   for (const file of files) {
     const bytes = await readFile(join(sourceRoot, file)); const target = join(runtimeRoot, file);
     if (!(await optionalRead(target))?.equals(bytes)) await atomicWrite(target, bytes);
   }
+  if (engine === 'native') for (const file of ['mcp.json','.mcp.json','adapters/codex/mcp.json']) {
+    const path=join(runtimeRoot,file),config=JSON.parse(await readFile(path,'utf8'));
+    config.mcpServers.agentmouse.args=config.mcpServers.agentmouse.args.map(value=>value.replace(/fusion-entry\.mjs$/,'mcp-server.mjs'));
+    await atomicWrite(path,JSON.stringify(config,null,2));
+  }
+  if (engine === 'fusion') await (await import('./fusion-setup.mjs')).copyFusionRuntime(sourceRoot, runtimeRoot);
 }
 export async function installAgents({ agents, sourceRoot, runtimeRoot, home = homedir(), profile = 'web', dryRun = false, env = process.env, beforeWrite, engine = 'native' } = {}) {
   const names = normalizeAgents(Array.isArray(agents) ? agents.join(',') : agents);
@@ -137,7 +143,7 @@ export async function installAgents({ agents, sourceRoot, runtimeRoot, home = ho
   }
   const summary = { agents: names, runtimeRoot, dryRun, changes: changes.map(item => ({ path: item.path, backup: item.before !== null })) };
   if (dryRun) return summary;
-  await copyRuntime(sourceRoot, runtimeRoot);
+  await copyRuntime(sourceRoot, runtimeRoot, { engine });
   const backupRoot = join(runtimeRoot, 'backups', new Date().toISOString().replace(/[:.]/g, '-') + '-' + randomUUID().slice(0, 8));
   const applied = [], backups = [];
   try {

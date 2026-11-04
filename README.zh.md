@@ -10,6 +10,17 @@
 
 **当前为测试版。** 融合服务已通过真实 Windows 控件到后台点击，以及 Chrome 完全被前台窗口遮挡时的十项鼠标检查。[融合桌面记录](docs/test-results/fusion-desktop-2026-11-04.json)。这不代表所有应用或真实验证码均兼容。
 
+## 两个独立版本
+
+[Core ZIP](https://github.com/Mint-hfut/AgentMouse/releases/download/v0.7.0-beta.3/AgentMouse-Core-0.7.0-beta.3-windows-x64.zip) · [Full ZIP](https://github.com/Mint-hfut/AgentMouse/releases/download/v0.7.0-beta.3/AgentMouse-Full-0.7.0-beta.3-windows-x64.zip)
+
+| 版本 | 内容 | Python / Windows-MCP | MCP |
+|---|---|---|---|
+| **AgentMouse Core** | 我们的独立鼠标、截图、窗口保护、MCP/插件/技能 | 不包含，也不需要 | 11 工具 |
+| **AgentMouse Full** | Core + Windows-MCP 系统工具/控件树 + 融合适配层 | 自带 Python 和依赖，无需单独安装 | 27 工具名 |
+
+Core 可单独运行和构建，Full 通过适配层复用 Core。我们的实现与上游贡献见[模块设计](docs/architecture.md)。Full 中独立键盘/批量输入仍未开放，相关接口明确返回不支持。
+
 ## Windows-MCP 融合模式
 
 新增融合版：Windows-MCP 的系统工具、目标控件树 + AgentMouse 后台截图与鼠标，统一提供 **27 个工具**。真实 Windows 控件标签到后台点击，以及被前台 ChatGPT 完全遮挡的 Chrome 十项检查均已通过。[融合能力、限制和用法](docs/fusion.md)。
@@ -18,7 +29,7 @@
 
 需要 Windows x64、**Node.js 18+ x64（含 npm）** 和 .NET Framework。原生被遮挡窗口采集要求 Windows 10 1903+。
 
-下载 [Windows ZIP](https://github.com/Mint-hfut/AgentMouse/releases)，解压后双击 **`install.cmd`**，先选择融合或原生引擎，再选择要接入的智能体。融合模式还需安装 [uv](https://docs.astral.sh/uv/getting-started/installation/)，安装器会自动准备 Python 3.14 与锁定依赖。原生模式仍不需要 Python。源码方式：
+下载 [Windows ZIP](https://github.com/Mint-hfut/AgentMouse/releases)，解压后双击 **`install.cmd`**，选择 Core 或 Full 下载包；各自默认加载对应引擎，安装时只需选择智能体。两版均不要求用户安装 Python 或 uv。源码方式：
 
 ```powershell
 git clone https://github.com/Mint-hfut/AgentMouse.git
@@ -26,7 +37,7 @@ cd AgentMouse
 .\install.cmd
 ```
 
-源码安装会下载锁定依赖、禁用依赖生命周期脚本，并使用 Windows 自带的 .NET Framework 编译器构建程序，不要求 Visual Studio 或 .NET SDK。Codex 原生插件安装需要 Codex CLI；ZCode 自动查找标准目录或 PATH 中的客户端插件 CLI。
+Core 源码安装会下载锁定的 Node 依赖、禁用其生命周期脚本，并使用 Windows 自带的 .NET Framework 编译器构建程序，不要求 Visual Studio 或 .NET SDK。从源码开发 Full 时需要 uv，发布的 Full 已包含 Python。Codex 原生插件安装需要 Codex CLI；ZCode 自动查找标准目录或 PATH 中的客户端插件 CLI。
 
 ```powershell
 .\install.cmd --engine fusion --agent codex,zcode
@@ -106,7 +117,7 @@ Chrome 在部分鼠标按下处理中会主动置前并激活窗口；仅仅不�
 
 ## 配置、备份与卸载
 
-运行目录默认 `%LOCALAPPDATA%\AgentMouse\0.7.0-beta.1`，融合模式增加 `-fusion` 后缀，并解析 Windows 打包应用重定向后的物理路径。浏览器配对目录 `~/.agentmouse/browser` 使用每用户密钥和仅监听本机的认证服务，密钥及私人浏览器资料不进仓库。
+运行目录默认 `%LOCALAPPDATA%\AgentMouse\0.7.0-beta.3`，融合模式增加 `-fusion` 后缀，并解析 Windows 打包应用重定向后的物理路径。浏览器配对目录 `~/.agentmouse/browser` 使用每用户密钥和仅监听本机的认证服务，密钥及私人浏览器资料不进仓库。
 
 安装保留其他配置并备份到运行目录 `backups/`。MCP 模式配置：Claude `~/.claude.json`、Codex `~/.codex/config.toml`、ZCode `~/.zcode/cli/config.json`、WorkBuddy `~/.workbuddy/mcp.json`、DSH `~/.dsh/profiles/<profile>/cordis.patch.yml`。原生升级只迁移 AgentMouse 自己的市场来源；原生命令失败明确报告可能完成的部分，仅 MCP 设置写入支持回滚。
 

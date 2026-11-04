@@ -1,11 +1,15 @@
-AgentMouse 0.7.0-beta.1 — Windows-MCP + AgentMouse fusion.
+AgentMouse 0.7.0-beta.3 — two independent editions, bundled Python in Full.
 
-- One 27-tool MCP server combines Windows-MCP 0.8.8 system services/UIAutomation and AgentMouse-only background images/mouse execution. The supplied Windows-MCP source directory is unchanged; its bundled source retains MIT notices separately from AgentMouse's Apache-2.0 license.
-- Snapshot captures one HWND/browser target and returns scoped control labels, real PNG pixels, coordinateSpace and an observation token. Click/Move/Scroll must address that exact window/token; stale/wrong-target input is rejected. Drag has an explicit start and cannot inherit the real cursor position.
-- Windows-MCP FileSystem, Process, Registry, PowerShell, HTTP Scrape, DisplayInventory, Clipboard and Notification are retained. Its physical mouse hooks/overlay are not started. Keyboard shortcuts/typing, Ctrl batches, foreground App launch/switch/resize, foreground DOM scraping, middle click and horizontal wheel are unavailable in background mode, with no physical-input fallback.
-- Interactive install recommends fusion. Unattended: install.cmd --engine fusion --agent codex,zcode (or all). Requires uv; installs Python 3.14 and locked dependencies. Existing unattended commands without --engine keep native-only mode.
-- Official SDK/27-tool tests, all five host adapter configurations, and real Windows control-label/WGC/input/result integration passed. The complete real-extension fusion path also passed ten desktop cases with Chrome fully covered by the foreground ChatGPT window, with no detected focus, relative-z-order or physical-pointer interference. Headless integration is checked separately in CI.
+Download one:
+- AgentMouse-Core-0.7.0-beta.3-windows-x64.zip: our standalone C#/Node background pointer, capture, target guards, MCP/plugins/skills. 11 tools. No Python, Windows-MCP source or fusion adapter.
+- AgentMouse-Full-0.7.0-beta.3-windows-x64.zip: Core + Windows-MCP 0.8.8 + fusion adapter, with an isolated relocatable Python runtime and all locked dependencies. 27 tool names. No separate Python or uv installation/download on the user's machine.
 
-Refresh/restart selected clients after installing. Enable input in the local controller; load/reload the generated Browser Bridge extension for browser tasks. Clipboard/system operations remain shared Windows operations. Real WeChat → QQ Mail and third-party CAPTCHA acceptance are not verified.
+Both require Windows x64 and Node 18+. Each package defaults to its own engine. Extract, run install.cmd and choose agents; refresh/restart clients afterward. They update the same AgentMouse plugin rather than starting two competing mouse services.
 
-中文：融合 Windows-MCP 的系统工具和控件树，鼠标与真实后台画面统一走 AgentMouse，提供 27 个工具。目标窗口、局部控件标签、观察编号绑定；明确拒绝不支持的共享键盘和前台输入。Windows 与 Chrome 融合链路实测通过；不代表所有应用、微信邮箱或真实验证码都保证可用。运行 install.cmd --engine fusion --agent codex,zcode，升级后刷新智能体会话。
+Core builds and runs independently; Full's adapter calls the same Core engine for every mouse operation. Windows-MCP contributes target-scoped UIAutomation and retained system tools. MIT/CPython/dependency notices are preserved. Upstream sources are marked vendored in repository language statistics.
+
+Validation covers Core package isolation and native plugin installation, Full install without Python/uv on PATH in a Chinese home after the source payload is moved, 27-tool SDK connectivity, real Windows label/WGC/background-input/result checks, and ten covered-Chrome desktop cases with no detected foreground/z-order/physical-pointer interference. Separate headless checks run in CI. Portable-runtime checks ignore host Python environment variables.
+
+Independent keyboard/shortcuts, Ctrl batches, foreground App activation and several native gesture variants remain unavailable; no physical-input fallback is used. System/clipboard tools affect shared Windows resources. WeChat → QQ Mail and third-party CAPTCHA acceptance remain unverified.
+
+中文：两版独立下载。Core 展示我们的后台鼠标、截图、保护机制、MCP/插件/技能，不含 Python 或 Windows-MCP。Full 在 Core 上融合 Windows-MCP 的系统工具和控件树，自带 Python 与全部依赖，用户不需要另装 Python/uv。安装器识别包类型，默认加载相应引擎。代码按核心、融合适配、上游、运行时打包分层；真实窗口和浏览器链路均有实测，不能宣传所有软件或验证码必过。

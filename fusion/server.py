@@ -11,6 +11,9 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
 
+# The bundled interpreter isolates sys.path from user Python installations.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 from fastmcp import FastMCP
 from fastmcp.tools import ToolResult
 from mcp.types import ImageContent, TextContent
@@ -35,7 +38,7 @@ def create_server(runtime, node, version):
 
     async def controls(window_id):
         process = await asyncio.create_subprocess_exec(
-            sys.executable, str(runtime / "fusion/controls.py"), window_id,
+            sys.executable, "-B", "-X", "utf8", str(runtime / "fusion/controls.py"), window_id,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
             limit=4 * 1024 * 1024, creationflags=subprocess.CREATE_NO_WINDOW,
         )

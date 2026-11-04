@@ -34,10 +34,10 @@ export async function installPlugins({ agents, sourceRoot, runtimeRoot, home = h
   const results = names.map(agent => ({ agent, mode: 'plugin', plugin: 'agentmouse@agentmouse', marketplace: runtimeRoot, dryRun }));
   if (dryRun) return results;
   const pluginRoot = join(runtimeRoot, 'plugin');
-  await copyRuntime(sourceRoot, pluginRoot);
+  await copyRuntime(sourceRoot, pluginRoot, { engine });
   if (engine === 'fusion') await (await import('./fusion-setup.mjs')).configureFusion(pluginRoot);
   const version = JSON.parse(await readFile(join(sourceRoot, 'plugin.json'), 'utf8')).version;
-  const catalog = { name: 'agentmouse', interface: { displayName: 'AgentMouse' }, plugins: [{ name: 'agentmouse', version, source: { source: 'local', path: './plugin' }, policy: { installation: 'AVAILABLE', authentication: 'ON_INSTALL' }, category: 'Productivity' }] };
+  const catalog = { name: 'agentmouse', interface: { displayName: engine === 'fusion' ? 'AgentMouse Full' : 'AgentMouse Core' }, plugins: [{ name: 'agentmouse', version, source: { source: 'local', path: './plugin' }, policy: { installation: 'AVAILABLE', authentication: 'ON_INSTALL' }, category: 'Productivity' }] };
   await mkdir(join(runtimeRoot, '.agents/plugins'), { recursive: true });
   await writeFile(join(runtimeRoot, '.agents/plugins/marketplace.json'), JSON.stringify(catalog, null, 2));
   await writeFile(join(runtimeRoot, 'marketplace.json'), JSON.stringify({ name: 'agentmouse', plugins: [{ name: 'agentmouse', version, source: './plugin', description: 'Background Windows computer use with an independent Agent pointer.' }] }, null, 2));
@@ -75,6 +75,8 @@ export async function installPlugins({ agents, sourceRoot, runtimeRoot, home = h
       try { if (!zcodeCurrent) call(addMarketplace); }
       catch (error) {
         if (agent !== 'codex' || !/marketplace 'agentmouse' is already added from a different source/.test(error.message)) throw error;
+        const previous=installedPlugin('codex',JSON.parse(call(['plugin','list','--marketplace','agentmouse','--json'])));
+        if(previous?.installed)call(['plugin','remove',result.plugin,'--json']);
         // Versioned runtime upgrades relocate only this installer's own marketplace.
         call(['plugin', 'marketplace', 'remove', 'agentmouse']); call(addMarketplace);
       }
