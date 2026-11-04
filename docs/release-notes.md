@@ -1,6 +1,9 @@
-AgentMouse 0.5.0: background Windows computer use through MCP, with an independent Agent pointer.
+AgentMouse 0.5.1 fixes native plugin installation for Codex and ZCode. Version 0.5.0 registered standalone MCP and skills but did not create an installed-plugin entry.
 
-- One-click installation for Claude Code, Codex, ZCode, WorkBuddy and DSH.
+- Codex/ZCode now use their native marketplace/install commands and verify the installed/enabled result. Missing native CLIs fail explicitly.
+- Claude Code, WorkBuddy and DSH use MCP + skills; `--mode mcp` explicitly selects that mode for any target.
+- Marketplace catalogs, clean plugin payloads, configuration backups and physical Windows path resolution.
+- Real Codex 0.153.4 / ZCode 0.17.1 installation and read-only MCP connectivity checked locally. GUI actions/browser visibility were not accepted.
 - MCP server, five Agent Skills, lifecycle commands and native plugin manifests.
 - Preserves existing settings, makes backups, supports dry runs and rolls back failed settings writes.
 - English/Chinese READMEs and documented compatibility limits.

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, writeFile, access, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, access, rm, realpath } from 'node:fs/promises';
 import { join, dirname, resolve, basename } from 'node:path';
 import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
@@ -97,13 +97,13 @@ try {
   await assert.rejects(installAgents({ ...options, agents: 'claude-code', home: conflictHome, async beforeWrite(file) { await writeFile(file, 'changed by user'); } }), /changed during installation/);
   assert.equal(await readFile(hostPaths('claude-code', conflictHome).config, 'utf8'), 'changed by user'); checks++;
   const cliHome = join(temp, 'cli 用户'), cliRuntime = join(temp, 'cli runtime');
-  const cliArgs = [join(sourceRoot, 'install.mjs'), '--agent', 'codex', '--home', cliHome, '--install-dir', cliRuntime];
+  const cliArgs = [join(sourceRoot, 'install.mjs'), '--agent', 'codex', '--mode', 'mcp', '--home', cliHome, '--install-dir', cliRuntime];
   execFileSync(process.execPath, [...cliArgs, '--dry-run'], { windowsHide: true });
   await missing(cliHome); await missing(cliRuntime);
   execFileSync(process.execPath, cliArgs, { windowsHide: true });
   const cliAgain = execFileSync(process.execPath, cliArgs, { windowsHide: true, encoding: 'utf8' });
   assert.match(cliAgain, /"changes": \[\]/);
-  assert.equal(parseToml(await readFile(hostPaths('codex', cliHome).config, 'utf8')).mcp_servers.agentmouse.args[0], join(cliRuntime, 'mcp-server.mjs')); checks++;
+  assert.equal(parseToml(await readFile(hostPaths('codex', cliHome).config, 'utf8')).mcp_servers.agentmouse.args[0], join(await realpath(cliRuntime), 'mcp-server.mjs')); checks++;
   console.log(`PASS installer: ${checks} groups; all five host layouts, preservation, backups, repeat install, dry run, rollback, concurrent edit detection, Unicode paths`);
 } finally {
   assert.equal(dirname(resolve(temp)), resolve(tmpdir())); assert.ok(basename(temp).startsWith('agentmouse-installer-'));

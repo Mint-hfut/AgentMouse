@@ -1,12 +1,14 @@
 # 智能体接入
 
-推荐使用根目录 `install.cmd`：选择智能体后，安装器向用户配置增量加入 MCP，并复制技能；路径见 [README](../README.zh.md)。所有接入复用相同的本地控制程序和九个 MCP 工具。
+推荐使用根目录 `install.cmd`：Codex、ZCode 默认通过原生插件 CLI 登记市场并安装插件，安装后查询已安装列表确认启用；其他三种默认增量加入 MCP 和技能。`--mode mcp` 可明确选择仅 MCP 接入。见 [README](../README.zh.md)。
 
 ## 插件与手动接入
 
-根目录 `plugin.json`、`mcp.json` 是 Agent Plugins 格式，另有 `.claude-plugin`、`.codex-plugin`、`.zcode-plugin` 兼容清单。清单使用宿主的插件根路径变量；直接添加 stdio MCP 应使用 `node agentmouse.mjs config <host>` 生成绝对路径配置。仓库没有附带本地插件市场。
+根目录 `plugin.json`、`mcp.json` 是 Agent Plugins 格式，另有 `.claude-plugin`、`.codex-plugin`、`.zcode-plugin` 兼容清单。现在同时附带 `.agents/plugins/marketplace.json`、根目录 `marketplace.json` 和 Claude 兼容市场清单，均指向本插件。直接添加 stdio MCP 可用 `node agentmouse.mjs config <host>`，但不会创建插件卡片。
 
-通过宿主支持的本地插件入口加载完整构建目录。原生插件加载未全部验收，安装配置测试不能替代客户端实际加载。同一客户端不要同时启用脚本和插件两份 MCP。
+手动接入原生市场时，Codex 使用 `codex plugin marketplace add <目录>` 后执行 `codex plugin add agentmouse@agentmouse`；ZCode 在插件页添加该本地目录或 GitHub 仓库为市场，再安装 AgentMouse。源码形式缺少二进制时，首次控制器调用会自动构建原生程序，编译输出走 stderr，不混入 MCP 标准输出。
+
+通过宿主支持的本地插件入口加载完整构建目录。Codex/ZCode 已验收原生安装和只读 MCP 连接；其他客户端的配置测试不能替代实际加载。同一客户端不要同时保留独立 MCP 注册和原生插件的同一服务。
 
 `commands/` 提供 start、status、stop、doctor；对应 `agentmouse-*` 技能不依赖统一的斜杠命令语法。
 

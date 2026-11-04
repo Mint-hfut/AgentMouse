@@ -1,0 +1,10 @@
+{
+  "name": "agentmouse",
+  "owner": { "name": "Mint-hfut" },
+  "plugins": [{
+    "name": "agentmouse",
+    "version": "0.5.1",
+    "description": "Background Windows computer use with an independent Agent pointer.",
+    "source": "./"
+  }]
+}

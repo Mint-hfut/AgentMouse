@@ -104,6 +104,14 @@ async function destinationPath(path) {
   try { const info = await lstat(path); return info.isSymbolicLink() ? await realpath(path) : path; }
   catch (error) { if (error.code === 'ENOENT') return path; throw error; }
 }
+export async function copyRuntime(sourceRoot, runtimeRoot) {
+  const files = ['LICENSE', 'mcp-server.mjs', 'agentmouse.mjs', 'plugin.json', 'mcp.json', '.mcp.json', 'scripts/build-native.mjs', 'dist/AgentMouse.exe', 'dist/AgentMouse.Cli.exe'];
+  for (const folder of ['skills', 'commands', 'assets', 'adapters', '.claude-plugin', '.codex-plugin', '.zcode-plugin']) for (const file of await filesUnder(join(sourceRoot, folder))) files.push(join(folder, file));
+  for (const file of files) {
+    const bytes = await readFile(join(sourceRoot, file)); const target = join(runtimeRoot, file);
+    if (!(await optionalRead(target))?.equals(bytes)) await atomicWrite(target, bytes);
+  }
+}
 export async function installAgents({ agents, sourceRoot, runtimeRoot, home = homedir(), profile = 'web', dryRun = false, env = process.env, beforeWrite } = {}) {
   const names = normalizeAgents(Array.isArray(agents) ? agents.join(',') : agents);
   sourceRoot = resolve(sourceRoot); runtimeRoot = resolve(runtimeRoot); home = resolve(home);
@@ -128,12 +136,7 @@ export async function installAgents({ agents, sourceRoot, runtimeRoot, home = ho
   }
   const summary = { agents: names, runtimeRoot, dryRun, changes: changes.map(item => ({ path: item.path, backup: item.before !== null })) };
   if (dryRun) return summary;
-  const runtimeFiles = ['LICENSE', 'mcp-server.mjs', 'agentmouse.mjs', 'dist/AgentMouse.exe', 'dist/AgentMouse.Cli.exe'];
-  for (const folder of ['skills', 'commands', 'assets', 'adapters']) for (const file of await filesUnder(join(sourceRoot, folder))) runtimeFiles.push(join(folder, file));
-  for (const file of runtimeFiles) {
-    const bytes = await readFile(join(sourceRoot, file)); const target = join(runtimeRoot, file);
-    if (!(await optionalRead(target))?.equals(bytes)) await atomicWrite(target, bytes);
-  }
+  await copyRuntime(sourceRoot, runtimeRoot);
   const backupRoot = join(runtimeRoot, 'backups', new Date().toISOString().replace(/[:.]/g, '-') + '-' + randomUUID().slice(0, 8));
   const applied = [], backups = [];
   try {

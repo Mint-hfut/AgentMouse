@@ -29,13 +29,23 @@ Applications can ignore messages or activate themselves. Input submission does n
 
 These are **configuration/protocol checks, not five-client GUI acceptance tests**.
 
+## Native client acceptance (0.5.1)
+
+On 2026-11-04, Codex CLI 0.153.4 and ZCode CLI 0.17.1 were used to install the actual native plugin in isolated homes and then in the local user's real configurations. Both reported `agentmouse@agentmouse` installed/enabled. ZCode reported five skills, one command root (four commands), and `plugin:agentmouse:agentmouse`, with no plugin diagnostics. The native installer now uses these client commands; 0.5.0 only registered standalone MCP and skills and did not create a plugin card.
+
+`node scripts/test-clients.mjs` read each client's installed registry and cached MCP declaration, connected through the official MCP SDK, listed all nine tools and called `pointer_status` through the native CLI/pipe path. Both returned the expected `not_running` controller state. No controller was opened and no desktop input was submitted. This confirms native installation and the declared server's connectivity, not that a model selected the tools or that a desktop action succeeded.
+
+The user stopped the attempted UI inspection with Escape. No visual plugin-browser acceptance is claimed, and running conversations were not restarted. Refresh/restart the client to load the new plugin into a new session. Native client tests are separate from the mocked native-installer tests in ordinary CI.
+
+The complete Windows ZIP was also extracted into a temporary directory and installed twice using the real Codex/ZCode plugin CLIs in isolated homes; both remained enabled and the relocated runtime checks passed. Reproduce with `powershell -File scripts/test-release.ps1 -NativeClients` when both clients are installed. Release CI runs the MCP-only distribution check without claiming native clients are available.
+
 ## Earlier prototype observations
 
 The 0.3/0.4 prototype was checked on one Windows machine. Selected Chrome/Edge click, right-click and scroll actions, plus Notepad/Word caret and scroll actions succeeded using background input without observed cursor or foreground change (10 selected checks). A single enabled session also routed Chrome to Notepad through the official MCP SDK.
 
 DSH loaded skills and made actual MCP calls; a later read-only load also worked. The music task was stopped by the user because no sound card was available, so audio playback was **not verified**. Touch showed negative cursor/focus effects and incomplete Word behavior. These are historical observations, not a new 0.5 end-to-end pass or a guarantee for all application versions.
 
-Claude Code native loading was blocked by local administrator policy and was not bypassed. Codex, ZCode and WorkBuddy native client loading have not been fully accepted on this machine. Their installer layouts are tested separately.
+Claude Code native loading was blocked by local administrator policy and was not bypassed. WorkBuddy native client loading remains unverified. Codex/ZCode native installation and read-only server connectivity were subsequently checked in 0.5.1 as described above; GUI actions remain outside that check.
 
 ## Optional interactive tests
 

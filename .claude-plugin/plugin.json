@@ -1,6 +1,6 @@
 {
   "name": "agentmouse",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Windows desktop computer use with shared MCP tools, skills and control commands.",
   "mcpServers": "./.mcp.json"
 }

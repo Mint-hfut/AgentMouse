@@ -1,0 +1,11 @@
+{
+  "name": "agentmouse",
+  "description": "Background computer use without taking over your mouse.",
+  "plugins": [{
+    "name": "agentmouse",
+    "version": "0.5.1",
+    "description": "Windows MCP tools, independent Agent pointer, skills and commands.",
+    "source": "./",
+    "category": "Productivity"
+  }]
+}

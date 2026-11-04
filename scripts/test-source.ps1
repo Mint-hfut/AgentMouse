@@ -3,7 +3,7 @@ $projectDir = Split-Path -Parent $PSScriptRoot
 $testRoot = [System.IO.Path]::GetFullPath((Join-Path ([System.IO.Path]::GetTempPath()) ('agentmouse-source-' + [guid]::NewGuid().ToString('N'))))
 try {
     New-Item -ItemType Directory -Path $testRoot | Out-Null
-    $files = @('LICENSE','package.json','package-lock.json','install.mjs','install.cmd','mcp-server.mjs','agentmouse.mjs','Native.cs','Core.cs','Transport.cs','Ui.cs','Program.cs','SelfTest.cs','scripts','skills','commands','assets','adapters')
+    $files = @('LICENSE','package.json','package-lock.json','plugin.json','mcp.json','.mcp.json','.claude-plugin','.codex-plugin','.zcode-plugin','install.mjs','install.cmd','mcp-server.mjs','agentmouse.mjs','Native.cs','Core.cs','Transport.cs','Ui.cs','Program.cs','SelfTest.cs','scripts','skills','commands','assets','adapters')
     foreach ($file in $files) { Copy-Item -LiteralPath (Join-Path $projectDir $file) -Destination $testRoot -Recurse }
     node (Join-Path $PSScriptRoot 'test-distribution.mjs') $testRoot
     if ($LASTEXITCODE -ne 0) { throw 'Fresh source installer checks failed.' }

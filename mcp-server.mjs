@@ -2,6 +2,7 @@ import { execFile, spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
+import { existsSync } from 'node:fs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const integer = { type: 'integer', minimum: -100000, maximum: 100000 };
@@ -36,7 +37,7 @@ export function createHandler(call) {
       const requested = request.params?.protocolVersion;
       if (typeof requested !== 'string') return error(-32602, 'Missing protocolVersion');
       initialized = true;
-      return reply({ protocolVersion: versions.includes(requested) ? requested : '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'agentmouse', version: '0.5.0' } });
+      return reply({ protocolVersion: versions.includes(requested) ? requested : '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'agentmouse', version: '0.5.1' } });
     }
     if (!initialized) return error(-32000, 'Initialize first');
     if (request.method === 'ping') return reply({});
@@ -68,7 +69,12 @@ export function createHandler(call) {
   };
 }
 
-export function callApp(request) {
+let nativeReady;
+export async function callApp(request) {
+  if (!nativeReady) nativeReady = Promise.resolve().then(async () => {
+    if (!existsSync(join(root, 'dist/AgentMouse.Cli.exe')) || !existsSync(join(root, 'dist/AgentMouse.exe'))) (await import('./scripts/build-native.mjs')).buildNative(root, ['ignore', process.stderr, process.stderr]);
+  }).catch(error => { nativeReady = null; throw error; });
+  await nativeReady;
   if (request.method === 'open') return openApp();
   return new Promise((resolve, reject) => {
     execFile(join(root, 'dist', 'AgentMouse.Cli.exe'), ['--call', JSON.stringify(request)], { windowsHide: true, timeout: 15000, maxBuffer: 32 * 1024 * 1024 }, (error, stdout) => {

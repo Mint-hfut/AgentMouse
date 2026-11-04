@@ -1,3 +1,4 @@
+param([switch]$NativeClients)
 $ErrorActionPreference = 'Stop'
 $projectDir = Split-Path -Parent $PSScriptRoot
 $version = (Get-Content -LiteralPath (Join-Path $projectDir 'package.json') -Raw | ConvertFrom-Json).version
@@ -8,7 +9,8 @@ $testRoot = [System.IO.Path]::GetFullPath((Join-Path ([System.IO.Path]::GetTempP
 try {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     [System.IO.Compression.ZipFile]::ExtractToDirectory($archivePath, $testRoot)
-    node (Join-Path $PSScriptRoot 'test-distribution.mjs') $testRoot
+    if ($NativeClients) { node (Join-Path $PSScriptRoot 'test-distribution.mjs') $testRoot --native }
+    else { node (Join-Path $PSScriptRoot 'test-distribution.mjs') $testRoot }
     if ($LASTEXITCODE -ne 0) { throw 'Distribution checks failed.' }
 } finally {
     $tempRoot = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath()).TrimEnd('\') + '\'

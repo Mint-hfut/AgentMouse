@@ -26,6 +26,8 @@ cd AgentMouse
 
 The source installer downloads locked npm dependencies without running package lifecycle scripts and compiles the controller using Windows' .NET Framework compiler. No Visual Studio or .NET SDK is required.
 
+**Since 0.5.1, selecting Codex or ZCode installs a native plugin**, not just a standalone MCP entry. Codex needs its CLI (`npm install -g @openai/codex` if missing); ZCode uses its bundled plugin CLI, detected in the standard Windows install locations or PATH. Installation fails explicitly if the native CLI cannot be found. Claude Code, WorkBuddy and DSH currently use MCP + skills registration, which does not create a plugin card in their plugin browser.
+
 To skip the menu:
 
 ```powershell
@@ -33,13 +35,16 @@ To skip the menu:
 .\install.cmd --agent claude-code,codex,dsh
 .\install.cmd --agent all
 .\install.cmd --agent dsh --profile web
+.\install.cmd --agent codex --mode mcp
 ```
 
-Restart the selected agents afterward. Ask your agent: **“Use AgentMouse to open its controller and check its status.”** Click **允许全桌面操作** (Allow desktop input) once in the controller, then give the task. The controller UI is currently Chinese.
+Refresh the plugin browser or restart the selected agents afterward. Codex and ZCode should list **agentmouse@agentmouse** as installed/enabled. The installer verifies the native client's installed-plugin response before reporting success. `--mode mcp` explicitly chooses standalone MCP + skills and does **not** create a plugin card. Ask your agent: **“Use AgentMouse to open its controller and check its status.”** Click **允许全桌面操作** (Allow desktop input) once in the controller, then give the task. The controller UI is currently Chinese.
 
 ## Installation details
 
-The persistent runtime defaults to `%LOCALAPPDATA%\AgentMouse\0.5.0`. Configurations reference this directory, so deleting the download/source folder afterward is safe. Node.js must remain at its installed path.
+The persistent runtime defaults to `%LOCALAPPDATA%\AgentMouse\0.5.1`. Windows packaged hosts may redirect this location; the installer resolves the physical path so other agents can read it. Native mode creates a clean `plugin/` payload and marketplace catalogs, then uses each host's native marketplace/install commands. Backups stay outside that payload. Deleting the download/source folder afterward is safe. Node.js must remain installed.
+
+The following table describes **MCP-only mode** (the default for Claude Code, WorkBuddy and DSH; use `--mode mcp` for Codex/ZCode):
 
 | Agent | User MCP configuration | Skills location |
 |---|---|---|
@@ -51,7 +56,7 @@ The persistent runtime defaults to `%LOCALAPPDATA%\AgentMouse\0.5.0`. Configurat
 
 `~` means your user home. Codex skills use the shared Agent Skills directory and may also be discovered by other compatible hosts. MCP registration is added only to selected agents. Commands are copied for Claude Code, ZCode and WorkBuddy; every host receives equivalent lifecycle skills. DSH defaults to `web` and needs its own existing model/provider configuration.
 
-Unrelated settings are retained. Changed files are backed up under the runtime's `backups/`, with an `index.json` mapping. Repeating an installation makes no duplicate entries. Malformed configurations fail before settings are written; write failures roll back applied changes. An existing unmanaged AgentMouse TOML entry is left alone and reported for manual resolution. Close settings editors during installation; concurrent changes are detected where possible.
+Unrelated settings are retained. Changed files are backed up under the runtime's `backups/`, with an `index.json` mapping. Repeating an installation makes no duplicate entries. In MCP-only mode, malformed configurations fail before settings are written and write failures roll back applied changes. Native mode backs up the client's configuration/registries, uses its own installer, and reports any partial failure; it does not claim transactional rollback of native client operations. An existing unmanaged AgentMouse TOML entry is left alone in MCP-only mode. Close settings editors during installation.
 
 Preview without writing settings or runtime files:
 
@@ -62,7 +67,7 @@ npm ci --ignore-scripts
 
 Advanced: `--home <directory>` selects an alternate home and ignores host-specific environment overrides. `--install-dir <directory>` selects the runtime directory. Normal installation respects `CODEX_HOME`, `CLAUDE_CONFIG_DIR` (skills/commands), and `DSH_HOME`.
 
-To remove it, stop AgentMouse, remove only its `agentmouse` MCP entry (DSH: `agentmouse-mcp` inserted plugin), and delete the five `agentmouse*` skill folders and AgentMouse command folder installed by this project. Delete the runtime last. Restoring a complete backup also reverts unrelated settings edited after that backup.
+For a native plugin, uninstall through the host's plugin manager (`codex plugin remove agentmouse@agentmouse`, or ZCode's installed-plugin page). For MCP-only mode, stop AgentMouse, remove only its `agentmouse` MCP entry (DSH: `agentmouse-mcp` inserted plugin), and delete the five project skill folders and AgentMouse command folder. Delete the runtime last. Restoring a complete backup also reverts unrelated settings edited after that backup. If migrating from 0.5.0, remove its standalone MCP registration to avoid duplicate tools alongside the native plugin.
 
 ## Use from any MCP agent
 
@@ -79,7 +84,9 @@ For another MCP host, configure this stdio server using absolute paths:
 }
 ```
 
-Point it at the built source directory or installed runtime. `node agentmouse.mjs config <host>` generates a local configuration fragment. Install `skills/` using that host's Agent Skills mechanism. Native plugin manifests are also included; see [adapter details and references](adapters/README.zh.md). Choose either plugin or script registration for a host to avoid duplicate tools.
+Point it at the built source directory or installed runtime (`plugin/` in native mode). `node agentmouse.mjs config <host>` generates a local configuration fragment. Install `skills/` using that host's Agent Skills mechanism. See [adapter details and references](adapters/README.zh.md). Avoid keeping a standalone MCP registration alongside the native plugin's MCP service.
+
+The repository now includes marketplace catalogs for direct native plugin distribution. When a Git-backed plugin is installed from source without binaries, its first controller call builds the native files locally using Windows' compiler; build messages go to stderr, preserving MCP stdio framing.
 
 | MCP tool | Purpose |
 |---|---|
@@ -115,6 +122,8 @@ npm run test:state
 ```
 
 Checks cover MCP validation, actual stdio transport with the official SDK, adapter relocation, five installer layouts in temporary homes, settings preservation, backups, repeat installation, dry run, rollback, and native state/coordinate independence. They do not start GUI actions or audio playback. CI runs these checks on Windows with Node 18 and 24.
+
+`node scripts/test-clients.mjs` separately checks **actually installed Codex and ZCode clients**, their cached plugin payloads, MCP manifests, all nine tools and a real read-only `pointer_status` round-trip. It requires both native clients and installed AgentMouse plugins; normal CI does not pretend these clients are present. The local 0.5.1 check passed with Codex CLI 0.153.4 and ZCode CLI 0.17.1. This is not a visual plugin-browser or desktop-action acceptance test.
 
 See [the validation guide](docs/compatibility.md) for optional interactive tests. `powershell -File scripts/build-release.ps1` builds and tests a complete Windows ZIP with native binaries, bundled installer dependencies and a SHA-256 file. `powershell -File scripts/test-release.ps1` checks the extracted ZIP installation; `scripts/test-source.ps1` checks first-time source installation with dependency download and compilation. Both use temporary homes. Version tags trigger the GitHub release workflow. Private profiles, local reports and screenshots are excluded from Git and releases.
 
