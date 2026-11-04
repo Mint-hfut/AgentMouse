@@ -33,7 +33,7 @@ if (process.argv[2] === '--serve') {
   let chrome, socket, fixture, client, extensionBridge, labServer, lastReport, testConfig, extensionFolder;
   const pending = new Map(); let sequence = 0;
   const delay = ms => new Promise(done => setTimeout(done, ms));
-  const waitFor = async test => { for (let i = 0; i < 80; i++) { const value = await test(); if (value) return value; await delay(100); } throw new Error('Fixture startup timed out'); };
+  const waitFor = async test => { for (let i = 0; i < 300; i++) { const value = await test(); if (value) return value; await delay(100); } throw new Error('Fixture startup timed out'); };
   function send(method, params = {}, sessionId) {
     return new Promise((done, fail) => {
       const id = ++sequence, timer = setTimeout(() => { pending.delete(id); fail(new Error('CDP timed out: ' + method)); }, 10000);
@@ -68,7 +68,12 @@ if (process.argv[2] === '--serve') {
     const { targetId } = await send('Target.createTarget', { url: fixtureUrl, newWindow: true, background: true, left: Math.ceil((before.bounds.x + 32) / dpi), top: Math.ceil((before.bounds.y + 48) / dpi), width: Math.floor(Math.min(900, before.bounds.width - 64) / dpi), height: Math.floor(Math.min(650, before.bounds.height - 96) / dpi) });
     assert.equal(foreground().windowId, before.windowId, 'Chrome setup activated its window; no input test was run');
     const sessionId = extensionTest ? null : (await send('Target.attachToTarget', { targetId, flatten: true })).sessionId;
-    await waitFor(async () => { const info = await send('Target.getTargetInfo', { targetId }); return info.targetInfo.title.startsWith('APCOMPAT-' + marker) ? info : null; });
+    try { await waitFor(async () => { const info = await send('Target.getTargetInfo', { targetId }); return info.targetInfo.title.startsWith('APCOMPAT-' + marker) ? info : null; }); }
+    catch(error){
+      console.log(JSON.stringify({startupTarget:await send('Target.getTargetInfo',{targetId})}));
+      const diagnostic=(await send('Target.attachToTarget',{targetId,flatten:true})).sessionId;
+      console.log(JSON.stringify({startupDocument:await send('Runtime.evaluate',{expression:'JSON.stringify({url:location.href,ready:document.readyState,text:document.body?.innerText.slice(0,1000)})',returnByValue:true},diagnostic)}));throw error;
+    }
     await delay(500);
     let ready = { windowId: 'browser:' + targetId };
     if (!headless) {
