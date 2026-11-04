@@ -1,0 +1,47 @@
+{
+  "date": "2026-11-04",
+  "sourceVersion": "0.7.0-beta.4",
+  "released": false,
+  "installedToUserClients": false,
+  "environment": "local interactive Windows x64 desktop",
+  "preFixBackendRevision": "217776c2c4ac9b07944519be99555616bebb0c92",
+  "oldBackendRegressions": [
+    {"case": "transparent-child-routing", "passed": false, "failure": "Covered native messages reached the wrong receiver"},
+    {"case": "qt-business-click", "passed": false, "actualBusinessClicks": 0, "expectedBusinessClicks": 1},
+    {"case": "delayed-down-release", "passed": false, "failure": "Target did not process an UP after down-timeout"}
+  ],
+  "fixedBackend": {
+    "transparentChildRouting": "passed",
+    "fullMcpWinFormsLabelMessageReceiptAndChangedImage": "passed",
+    "qtBusinessClick": {
+      "command": "npm run test:fusion:qt",
+      "qtVersion": "5.15.2",
+      "pyqtVersion": "5.15.11",
+      "layeredTransparentRenderChild": true,
+      "businessEvent": "QPushButton.clicked",
+      "actualBusinessClicks": 1,
+      "changedWgcImage": true,
+      "wrongTargetRejected": true,
+      "reusedObservationRejected": true,
+      "foregroundUnchanged": true,
+      "physicalCursorUnchanged": true,
+      "uiaUsed": false
+    },
+    "releaseFailures": {
+      "command": "npm run test:native:failures",
+      "passed": ["delayed DOWN", "delayed UP", "pause during hold", "graceful transport shutdown during hold"],
+      "actualTargetCaptureReleased": true,
+      "noRepeatedDown": true,
+      "uncertainDeliveryBlocksFurtherInput": true,
+      "foregroundAndPhysicalCursorUnchanged": true
+    },
+    "otherChecks": ["npm run build", "npm test", "npm run test:state", "npm run test:routing", "npm run test:fusion", "npm run test:fusion:windows"]
+  },
+  "limits": [
+    "Owned fixtures only; no live WeChat input, capture or UIA retried.",
+    "WeChat's Qt 5.15.14/custom renderer and QQ Mail workflow remain unverified.",
+    "The original persistent hang's cause is not established by these regressions.",
+    "Queued cleanup is not execution confirmation and cannot recover a permanently blocked target thread.",
+    "Graceful transport shutdown is not forcible process termination."
+  ]
+}

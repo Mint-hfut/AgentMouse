@@ -87,6 +87,13 @@ internal static class Native {
     internal static void Post(IntPtr w,uint msg,UIntPtr wp,IntPtr lp){
         if(!PostMessage(w,msg,wp,lp))throw new Fault("delivery_failed","窗口消息未能排队："+Marshal.GetLastWin32Error());
     }
+    internal static bool QueueMouseCancel(IntPtr w,uint up,Point last){
+        // A timed-out sent handler can still finish later; queue cleanup behind it, without another DOWN.
+        bool before=PostMessage(w,CANCELMODE,UIntPtr.Zero,IntPtr.Zero);
+        bool release=PostMessage(w,up,UIntPtr.Zero,Pack(last.X,last.Y));
+        bool after=PostMessage(w,CANCELMODE,UIntPtr.Zero,IntPtr.Zero);
+        return before&&release&&after;
+    }
     internal static void DpiAware(){try{SetProcessDpiAwarenessContext(new IntPtr(-4));}catch(EntryPointNotFoundException){}}
 }
 }

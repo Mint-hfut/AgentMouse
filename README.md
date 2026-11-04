@@ -1,5 +1,7 @@
 # AgentMouse
 
+Unreleased native input fixes now skip transparent render children and queue cancellation/release after uncertain delivery. Old-backend regressions fail; the fixed Full MCP executes a real Qt button business event and passes delayed-DOWN/UP, pause and graceful shutdown release checks. Live WeChat remains quarantined and unverified; [incident evidence](docs/incidents/2026-11-04-wechat-hang.md). No client upgrade is performed by these tests.
+
 **Compatibility incident (2026-11-04):** WeChat became unresponsive after automation and required an app restart. Root cause is unconfirmed. Keep the installed AgentMouse plugin disabled and do not retry against live WeChat. Unreleased containment quarantines WeChat automation, makes UIA opt-in and removes arbitrary PowerShell from Full; this is not a root-cause fix.
 
 **Background computer use for AI agents on Windows, with a pointer independent of your real mouse.**

@@ -34,13 +34,15 @@ internal static class SelfTest {
                 target=new PracticeForm(engine){NoActivate=true,Text="AgentMouse routing target",ShowInTaskbar=false};
                 cover=new PracticeForm(new Engine()){NoActivate=true,Text="AgentMouse routing decoy",ShowInTaskbar=false};
                 targetProbe=new RoutingButton{Bounds=target.TestButton.Bounds,Text="Routing target"};target.TestButton.Hide();target.Controls.Add(targetProbe);
+                // Reproduce a transparent render child over its input surface.
+                var renderLayer=new TransparentRenderLayer{Bounds=targetProbe.Bounds};target.Controls.Add(renderLayer);
                 coverProbe=new RoutingButton{Bounds=cover.TestButton.Bounds,Text="Routing decoy"};cover.TestButton.Hide();cover.Controls.Add(coverProbe);
                 var area=Screen.PrimaryScreen.WorkingArea;target.Location=new Point(area.Left+50,area.Top+50);cover.Location=target.Location;
-                target.Shown+=delegate{cover.Show();Native.SetWindowPos(cover.Handle,new IntPtr(1),0,0,0,0,0x13);Native.SetWindowPos(target.Handle,cover.Handle,0,0,0,0,0x13);ready.Set();};
+                target.Shown+=delegate{renderLayer.BringToFront();cover.Show();Native.SetWindowPos(cover.Handle,new IntPtr(1),0,0,0,0,0x13);Native.SetWindowPos(target.Handle,cover.Handle,0,0,0,0,0x13);ready.Set();};
                 Application.Run(target);
             }catch(Exception error){startup=error;ready.Set();}
         });ui.IsBackground=true;ui.SetApartmentState(ApartmentState.STA);ui.Start();
-        if(!ready.Wait(7000)||startup!=null)throw new Exception("Routing fixture startup failed",startup);
+        if(!ready.Wait(7000)||startup!=null)throw new Exception("Routing fixture startup failed: "+(startup==null?"no Shown event":startup.ToString()),startup);
         try{
             engine.FixtureWindow=target.Handle;IntPtr foreground=Native.GetForegroundWindow();
             var listed=Engine.Windows(IntPtr.Zero).Find(w=>w.Handle==target.Handle);Assert(listed!=null,"Target missing from inventory");
@@ -73,6 +75,61 @@ internal static class SelfTest {
         internal volatile int Ups;
         internal bool TrackReceipt;
         protected override void WndProc(ref System.Windows.Forms.Message message){if(message.Msg==Native.LEFTUP){Ups++;if(TrackReceipt)Text="fusion fixture received "+Ups;}base.WndProc(ref message);}
+    }
+    private sealed class TransparentRenderLayer : Control {
+        protected override CreateParams CreateParams {get{var p=base.CreateParams;p.ExStyle|=0x20;return p;}}
+    }
+    private sealed class ReleaseProbe : Control {
+        internal int DownDelay,UpDelay,Downs,Ups,Cancels;
+        internal readonly ManualResetEventSlim Pressed=new ManualResetEventSlim(),Released=new ManualResetEventSlim();
+        protected override void WndProc(ref System.Windows.Forms.Message m){
+            if(m.Msg==Native.LEFTDOWN){Downs++;Thread.Sleep(DownDelay);Capture=true;Pressed.Set();return;}
+            if(m.Msg==Native.LEFTUP){Ups++;if(Ups==1)Thread.Sleep(UpDelay);Capture=false;Released.Set();return;}
+            if(m.Msg==Native.CANCELMODE){Cancels++;Capture=false;}
+            base.WndProc(ref m);
+        }
+    }
+    internal static int MessageFailures(){
+        PracticeForm form=null;ReleaseProbe probe=null;var ready=new ManualResetEventSlim();Exception startup=null;
+        IntPtr foreground=Native.GetForegroundWindow();Native.Point before,after;Native.GetCursorPos(out before);
+        var ui=new Thread(delegate(){try{
+            form=new PracticeForm(new Engine()){NoActivate=true,ShowInTaskbar=false,Text="AgentMouse release fixture"};
+            probe=new ReleaseProbe{Bounds=new Rectangle(20,220,180,50)};form.Controls.Add(probe);
+            form.Shown+=delegate{Native.SetWindowPos(form.Handle,new IntPtr(1),0,0,0,0,0x13);ready.Set();};Application.Run(form);
+        }catch(Exception error){startup=error;ready.Set();}});ui.IsBackground=true;ui.SetApartmentState(ApartmentState.STA);ui.Start();
+        if(!ready.Wait(7000)||startup!=null)throw new Exception("Release fixture startup failed",startup);
+        try{
+            foreach(string scenario in new[]{"down-timeout","up-timeout","pause","controller-exit"}){
+                form.Invoke((Action)delegate{probe.DownDelay=scenario=="down-timeout"?700:0;probe.UpDelay=scenario=="up-timeout"?700:0;probe.Downs=probe.Ups=probe.Cancels=0;probe.Pressed.Reset();probe.Released.Reset();});
+                var engine=new Engine{Armed=true,FixtureWindow=form.Handle};
+                Native.Rect bounds;Native.GetWindowRect(form.Handle,out bounds);uint pid;Native.GetWindowThreadProcessId(form.Handle,out pid);
+                var desktop=SystemInformation.VirtualScreen;
+                var observation=new Observation{Token=Guid.NewGuid().ToString("N"),At=InputTracker.Now,Bounds=new Native.Rect{Left=desktop.Left,Top=desktop.Top,Right=desktop.Right,Bottom=desktop.Bottom},Target=new ObservedWindow{Handle=form.Handle,Pid=pid,Bounds=bounds},FrameTimestamp=1};
+                // Inject only the owned fixture's observation to separate input failure tests from WGC/UIA.
+                typeof(Engine).GetField("observation",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).SetValue(engine,observation);
+                var point=new Native.Point(80,25);Native.ClientToScreen(probe.Handle,ref point);
+                var request=new Dictionary<string,object>{{"method","click"},{"windowId",form.Handle.ToInt64().ToString()},{"observationId",observation.Token},{"x",point.X},{"y",point.Y},{"holdMs",scenario.EndsWith("timeout")?0:1500}};
+                if(scenario.EndsWith("timeout")){
+                    Expect("button_release_unconfirmed",()=>engine.Dispatch(request));
+                    Assert(!engine.Armed&&engine.MessageButtonHeld,"Uncertain release was reported as safe");
+                    engine.Armed=true;Expect("contact_unreleased",()=>engine.Dispatch(request));
+                }else if(scenario=="pause"){
+                    var action=Task.Run(()=>engine.Dispatch(request));Assert(probe.Pressed.Wait(3000),"Fixture never pressed");engine.Pause("fixture pause");
+                    try{action.GetAwaiter().GetResult();throw new Exception("Paused hold succeeded");}catch(Fault error){Assert(error.Code=="paused","Unexpected pause failure");}
+                }else{
+                    string pipe="agentmouse-background-"+Guid.NewGuid();
+                    using(var server=new Transport(engine,pipe)){
+                        server.Start();var action=Task.Run(()=>Transport.Call(pipe,Json.Write(request)));
+                        Assert(probe.Pressed.Wait(3000),"Fixture never pressed before shutdown");server.Dispose();
+                        try{action.GetAwaiter().GetResult();}catch(IOException){}catch(Fault){}
+                    }
+                }
+                Assert(probe.Released.Wait(4000),"Target did not process an UP after "+scenario);
+                form.Invoke((Action)delegate{Assert(!probe.Capture,"Target retained mouse capture after "+scenario);Assert(probe.Downs==1,"DOWN was replayed after "+scenario);if(scenario.EndsWith("timeout"))Assert(probe.Cancels>=2,"Missing ordered cancellation after "+scenario);});
+            }
+            Native.GetCursorPos(out after);Assert(Native.GetForegroundWindow()==foreground&&before.X==after.X&&before.Y==after.Y,"Release fixtures changed foreground/cursor");
+            Console.WriteLine("PASS native release failures: delayed DOWN, delayed UP, pause during hold, controller exit during hold; no repeated DOWN, queued cancel/UP processed, target capture released, uncertainty blocks new input; own windows only.");return 0;
+        }finally{if(form!=null&&!form.IsDisposed)form.Invoke((Action)delegate{form.Close();});ui.Join(3000);}
     }
     internal static int ProbeBackgroundCapture(string processName,string directory,string title=""){
         var candidates=Engine.Windows(IntPtr.Zero).FindAll(w=>string.Equals(w.ProcessName,processName,StringComparison.OrdinalIgnoreCase)&&(title==""||w.Name.Contains(title)));
@@ -110,10 +167,11 @@ internal static class SelfTest {
         }
         Assert(best>100,"Expected fixture color was not found in the captured background image");Console.WriteLine(Json.Write(result));return 0;
     }
-    internal static int BackgroundFixtureServer(string title,string pipe){
+    internal static int BackgroundFixtureServer(string title,string pipe,uint fixturePid=0){
         if(!title.StartsWith("APCOMPAT-background-",StringComparison.Ordinal)||!pipe.StartsWith("agentmouse-background-",StringComparison.Ordinal))throw new Exception("Only an isolated background fixture is accepted");
-        var targets=Engine.Windows(IntPtr.Zero).FindAll(w=>w.ProcessName=="chrome"&&w.Name.StartsWith(title,StringComparison.Ordinal));
-        Assert(targets.Count==1,"Expected one owned Chrome fixture window");
+        if(fixturePid!=0){Guid nonce;Assert(Guid.TryParse(pipe.Substring("agentmouse-background-".Length),out nonce)&&title=="APCOMPAT-background-"+nonce.ToString(),"Native fixture title must match its private pipe nonce");}
+        var targets=Engine.Windows(IntPtr.Zero).FindAll(w=>(fixturePid==0?w.ProcessName=="chrome":w.Pid==fixturePid)&&w.Name.StartsWith(title,StringComparison.Ordinal));
+        Assert(targets.Count==1,"Expected one owned fixture window");
         Assert(Native.SetWindowPos(targets[0].Handle,new IntPtr(1),0,0,0,0,0x13),"Could not lower the owned fixture without activation");
         var engine=new Engine{Armed=true,FixtureWindow=targets[0].Handle};using(var server=new Transport(engine,pipe)){
             using(var sink=new FixtureInputSink(engine))using(var timer=new System.Windows.Forms.Timer()){

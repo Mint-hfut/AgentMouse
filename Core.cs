@@ -316,11 +316,12 @@ internal sealed class Engine {
         }
         Gate(generation);
     }
-    private static IntPtr ChildAt(IntPtr root,Native.Point p,bool backgroundWindow=false){
+    private static IntPtr ChildAt(IntPtr root,Native.Point p){
         IntPtr current=root;
         for(int i=0;i<16;i++){
             var local=p;Native.ScreenToClient(current,ref local);
-            IntPtr child=Native.ChildWindowFromPointEx(current,local,backgroundWindow?3u:7u);
+            // Transparent render layers are not input surfaces, including in covered windows.
+            IntPtr child=Native.ChildWindowFromPointEx(current,local,7u);
             if(child==IntPtr.Zero||child==current)break;current=child;
         }return current;
     }
@@ -349,7 +350,7 @@ internal sealed class Engine {
         for(int click=0;click<count;click++){
             Gate(generation);if(Human.Sequence!=humanSequence)throw new Fault("human_busy","检测到你的新输入，本次手势已取消。");
             ValidateTarget(target);if(Native.GetForegroundWindow()!=foreground||(wasBehind&&Above(target.Handle,foreground)))throw new Fault("foreground_interference","前台或窗口层级变化，已取消后续手势。");
-            bool started=false;
+            bool started=false,deliveryUncertain=false;
             try{
                 started=true;MessageButtonHeld=true;Native.Send(receiver,click==0?down:twice,new UIntPtr(pressed),Native.Pack(last.X,last.Y));
                 long start=InputTracker.Now;int span=drag?duration:hold;
@@ -367,12 +368,19 @@ internal sealed class Engine {
                     }
                     if(fraction>=1)break;Thread.Sleep(12);
                 }
-            }finally{
+            }catch(Fault error){deliveryUncertain=error.Code=="delivery_failed";throw;}
+            finally{
                 if(started){
                     uint pid;Native.GetWindowThreadProcessId(receiver,out pid);
                     if(!Native.IsWindow(receiver)||pid!=receiverPid)MessageButtonHeld=false;
-                    else try{Native.Send(receiver,up,UIntPtr.Zero,Native.Pack(last.X,last.Y));MessageButtonHeld=false;}
-                    catch{Pause("后台按键释放未确认，请手动取消目标操作后重开控制器。");try{Native.Post(receiver,Native.CANCELMODE,UIntPtr.Zero,IntPtr.Zero);}catch{}throw new Fault("button_release_unconfirmed","按键释放未确认，禁止继续输入；请手动取消目标操作后重开控制器。");}
+                    else{
+                        if(!deliveryUncertain)try{Native.Send(receiver,up,UIntPtr.Zero,Native.Pack(last.X,last.Y));MessageButtonHeld=false;}catch{deliveryUncertain=true;}
+                        if(deliveryUncertain){
+                            bool queued=Native.QueueMouseCancel(receiver,up,last);
+                            Pause("后台按键释放未确认；禁止继续输入。");
+                            throw new Fault("button_release_unconfirmed","目标消息处理超时；"+(queued?"已排队取消和释放，但无法确认目标完成":"取消或释放未能完整排队")+"。禁止重试点击或切换物理输入兜底。");
+                        }
+                    }
                 }
             }
             if(click+1<count)Thread.Sleep(40);
@@ -418,7 +426,7 @@ internal sealed class Engine {
             if(o.Target!=null){if(actionFrames.Count>=64)actionFrames.Clear();actionFrames[target.Handle]=Tuple.Create(target.Pid,o.FrameTimestamp);}
             Message=mode=="touch"?"正在执行触摸操作…":"正在执行后台点击…";
             if(mode=="background"){
-                IntPtr child=ChildAt(target.Handle,from,o.Target!=null);var p=ClientPoint(child,from);
+                IntPtr child=ChildAt(target.Handle,from);var p=ClientPoint(child,from);
                 receiver=child;receiverPoint=p;
                 // LPARAM mouse coordinates are signed 16-bit client pixels.
                 if(p.X<short.MinValue||p.X>short.MaxValue||p.Y<short.MinValue||p.Y>short.MaxValue)throw new Fault("unsupported","控件坐标超出窗口消息范围。");

@@ -13,10 +13,12 @@ internal static class Program {
         try{
             if(args.Length>0&&args[0]=="--state-self-test")return SelfTest.StateOnly();
             if(args.Length==1&&args[0]=="--routing-self-test")return SelfTest.Routing();
+            if(args.Length==1&&args[0]=="--message-failure-self-test")return SelfTest.MessageFailures();
             if(args.Length==2&&args[0]=="--fusion-native-fixture")return SelfTest.FusionFixture(args[1]);
             if(args.Length==1&&args[0]=="--foreground-state")return SelfTest.ForegroundState();
             if(args.Length==3&&args[0]=="--image-color-point")return SelfTest.ImagePoint(args[1],args[2]);
             if(args.Length==3&&args[0]=="--background-fixture-server")return SelfTest.BackgroundFixtureServer(args[1],args[2]);
+            if(args.Length==4&&args[0]=="--native-fixture-server")return SelfTest.BackgroundFixtureServer(args[1],args[2],uint.Parse(args[3]));
             if((args.Length==3||args.Length==4)&&args[0]=="--probe-background-capture")return SelfTest.ProbeBackgroundCapture(args[1],args[2],args.Length==4?args[3]:"");
             if(args.Length>0&&args[0]=="--self-test")return SelfTest.Run(args.Length>1?args[1]:"test-report.json");
             string pipe=Transport.DefaultName;

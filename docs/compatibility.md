@@ -6,8 +6,9 @@ AgentMouse has two input routes. Native Windows capture/messages provide desktop
 
 | Check | Evidence | Limit |
 |---|---|---|
+| Unreleased beta.4 native input fixes | Old-backend regressions fail; covered Qt button business event, transparent-child routing and four release-failure scenarios pass with fixes | Owned fixtures only; live WeChat remains quarantined. [Results](test-results/native-input-2026-11-04.json) |
 | Native plugin installation | Codex CLI 0.153.4 and ZCode CLI 0.17.1 report AgentMouse installed/enabled | Plugin-browser visual acceptance was stopped by the user; running conversations were not restarted |
-| Declared MCP connectivity | Official SDK reads cached plugin manifests: 11 native-only tools or 27 fusion tools, with real status calls | Separate from an actual model choosing a tool |
+| Declared MCP connectivity | Current source SDK checks 11 Core or 26 Full tool names; historical beta.3 Full had 27 | Separate from an actual model choosing a tool; installed ZCode beta.3 is disabled after the WeChat incident |
 | Windows-MCP fusion | Real Windows control-label/WGC/background-message/result integration, SDK and five host adapter checks passed | Independent keyboard is unavailable; [fusion behavior and evidence](fusion.md) |
 | Fusion browser desktop workflow | Ten cases passed with Chrome fully covered by foreground ChatGPT | [Separate fusion report](test-results/fusion-desktop-2026-11-04.json); local fixture, not real CAPTCHA-provider acceptance |
 | Windows background capture | Real Chrome HWND pixels captured using Windows.Graphics.Capture while covered | Apps can stop repainting; no desktop-crop fallback |
@@ -61,7 +62,7 @@ The provided ZCode trace used AgentMouse beta.2. The initial list contained no v
 
 Beta.3 adds process discovery (including WeChat/Weixin aliases), hidden/minimized window inventory, PID/class/owner/bounds, front-to-back depth and overlapping windows above. Rectangular overlap is advisory, not pixel-accurate occlusion. A running process is not proof that the desired account/session is logged in. Hidden/minimized windows are found but not restored automatically.
 
-The read-only `pointer_inspect_window` uses .NET UIAutomation in a short-lived CLI process with an external timeout; a blocked provider does not block the controller. It reads control names/roles, not password values, and never calls focus/Invoke/keyboard methods. Reviewing the local [Windows-MCP project](https://github.com/CursorTouch/Windows-MCP) informed this split between app/process/window/control discovery. Its foreground Click/App-switch implementations were not adopted; no upstream source was copied and no Python dependency was added.
+The read-only `pointer_inspect_window` uses .NET UIAutomation in a short-lived CLI process with an external timeout; this bounds the caller's wait but cannot guarantee that the target's provider stays responsive. It reads control names/roles, not password values, and never calls focus/Invoke/keyboard methods. Reviewing the local [Windows-MCP project](https://github.com/CursorTouch/Windows-MCP) informed this split between app/process/window/control discovery. Its foreground Click/App-switch implementations were not adopted in Core; Full later added the separately vendored upstream system/semantic modules and bundled Python.
 
 All mouse actions now declare their intended window ID. MCP and native/browser routes check the target against the observation/hit receiver. A supplied window ID defaults to a real window capture; combining it with a desktop crop is rejected. After native input, an unchanged/older frame blocks further input with `unverified_frame` (also exposed as `inputAllowed=false`). A new frame only permits reassessment; it does not prove a business outcome. Skills explicitly stop retries/relaunches and distinguish overlay position from delivery target.
 
@@ -90,6 +91,25 @@ node scripts/test-clients.mjs
 ```
 
 Ordinary tests use temporary homes, mocked browser transports where stated, actual MCP stdio/SDK, native compilation and state checks. They do not perform desktop input. `test-clients` requires installed clients and is read-only.
+
+Owned native-window regressions require an interactive Windows desktop:
+
+```powershell
+npm run test:routing
+npm run test:native:failures
+npm run test:fusion:windows
+```
+
+For the separate Qt business-event fixture, install its test dependency into an isolated directory (not either product runtime). PyQt5 5.15.11 supplies Qt 5.15.2 on this machine:
+
+```powershell
+uv pip install --python python --target compatibility-results/qt-fixture-runtime PyQt5==5.15.11
+$env:AGENTMOUSE_QT_PYTHON = (Get-Command python).Source
+$env:PYTHONPATH = (Resolve-Path compatibility-results/qt-fixture-runtime).Path
+npm run test:fusion:qt
+```
+
+The fixture sends input only to its nonce/PID-scoped temporary window through Full MCP, checks a real `QPushButton.clicked` counter and a changed WGC image, and retains the existing foreground/cursor. It does not query UIA or touch real WeChat. The ordinary WinForms routing check still asserts message receipt, not a business Click event.
 
 For the **real extension component** test (Node 22+):
 

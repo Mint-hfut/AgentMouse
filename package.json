@@ -64,8 +64,10 @@
     "test:state": "node scripts/test-native.mjs",
     "test:sdk": "node test-sdk.mjs",
     "test:routing": "node scripts/test-native.mjs --routing",
+    "test:native:failures": "node scripts/test-native.mjs --message-failures",
     "test:fusion": "node scripts/test-fusion.mjs",
-    "test:fusion:windows": "node scripts/test-fusion-windows.mjs"
+    "test:fusion:windows": "node scripts/test-fusion-windows.mjs",
+    "test:fusion:qt": "node scripts/test-fusion-windows.mjs --qt"
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2"
