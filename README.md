@@ -8,13 +8,17 @@ Keep working while your agent observes and operates another app. AgentMouse comb
 
 For web tasks, **Browser Bridge** reads real tab images and sends coordinate-based mouse input through Chrome's debugger API. It uses your existing browser/profile and does not rely on DOM selectors, injected clicks or per-site scripts. Native Windows capture/messages remain available for desktop apps.
 
-**Beta:** beta.3 adds process/window/control discovery and frozen-frame input protection, verified with owned overlapping Windows fixtures. In the historical beta.2 desktop acceptance, all ten local browser workflow checks passed with Chrome fully covered by the foreground ZCode window, including fresh background images, slider/puzzle gestures, ordered clicks and cancellation. The test detected no foreground, z-order or unattributed system-pointer interference. This is not a universal app-compatibility or CAPTCHA-solving guarantee. [Desktop evidence](docs/test-results/desktop-2026-11-04.json).
+**Beta:** the fusion server passed native Windows control-label-to-background-input integration and ten covered-Chrome desktop checks. [Fusion desktop evidence](docs/test-results/fusion-desktop-2026-11-04.json). This does not guarantee every app or real CAPTCHA accepts automation.
+
+## Windows-MCP fusion
+
+Fusion combines Windows-MCP system tools/target-scoped controls with AgentMouse background capture/input in one **27-tool MCP server**. Native Windows label-to-input integration and ten covered-Chrome desktop cases passed. [Fusion setup, capabilities and limits](docs/fusion.md).
 
 ## Install
 
-Requires Windows x64, Node.js **18+ x64** with npm and .NET Framework. Native covered-window capture requires Windows 10 1903+.
+Requires Windows x64, Node.js **18+ x64** with npm and .NET Framework. Fusion also needs [uv](https://docs.astral.sh/uv/getting-started/installation/); Python 3.14 and locked dependencies are prepared automatically. Native-only mode does not need Python. Native covered-window capture requires Windows 10 1903+.
 
-Extract the [Windows release ZIP](https://github.com/Mint-hfut/AgentMouse/releases), double-click **`install.cmd`**, and select your agents. From source:
+Extract the [Windows release ZIP](https://github.com/Mint-hfut/AgentMouse/releases), double-click **`install.cmd`**, and select the engine and agents. From source:
 
 ```powershell
 git clone https://github.com/Mint-hfut/AgentMouse.git
@@ -25,7 +29,7 @@ cd AgentMouse
 The source installer installs locked dependencies without lifecycle scripts and compiles native files with Windows' .NET Framework compiler. No Visual Studio/.NET SDK is required. Codex native installation needs its CLI; ZCode uses its bundled plugin CLI in standard install locations or PATH.
 
 ```powershell
-.\install.cmd --agent codex,zcode
+.\install.cmd --engine fusion --agent codex,zcode
 .\install.cmd --agent all
 .\install.cmd --agent dsh --profile web
 .\install.cmd --agent codex --mode mcp
@@ -55,7 +59,9 @@ node agentmouse.mjs browser-stop
 
 The controller UI is currently Chinese. Chrome may display its standard debugging indicator. Use one paired browser profile and one controlling agent at a time.
 
-## Mouse and capture capabilities
+## Native-only mouse and capture capabilities
+
+The following 11-tool reference is for native-only mode. Fusion tool names and target/token arguments are documented in [fusion.md](docs/fusion.md).
 
 | Tool | Behavior |
 |---|---|
@@ -96,7 +102,7 @@ Desktop non-interference, actual-client native loading and component tests are s
 
 ## Configuration and removal
 
-Runtime: `%LOCALAPPDATA%\AgentMouse\0.6.0-beta.3` (physical path resolved for packaged Windows hosts). Browser pairing: `~/.agentmouse/browser`, with a per-user local token and authenticated loopback-only service. Generated secrets/private profiles stay outside the repo. Existing settings are retained with backups under the runtime's `backups/`.
+Runtime: `%LOCALAPPDATA%\AgentMouse\0.7.0-beta.1` (fusion adds a `-fusion` suffix; physical path resolved for packaged Windows hosts). Browser pairing: `~/.agentmouse/browser`, with a per-user local token and authenticated loopback-only service. Generated secrets/private profiles stay outside the repo. Existing settings are retained with backups under the runtime's `backups/`.
 
 MCP-only paths: Claude `~/.claude.json`, Codex `~/.codex/config.toml`, ZCode `~/.zcode/cli/config.json`, WorkBuddy `~/.workbuddy/mcp.json`, DSH `~/.dsh/profiles/<profile>/cordis.patch.yml`. Codex native upgrades relocate only AgentMouse's own marketplace when the versioned source changes. Native installer failures report possible partial completion; MCP-only settings writes support rollback.
 

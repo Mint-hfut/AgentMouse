@@ -27,6 +27,19 @@ jobs:
           $env:AGENTMOUSE_CHROME = ./scripts/get-test-chrome.ps1
           node scripts/test-background-chrome.mjs --headless-test --extension-bridge-test
           if ($LASTEXITCODE -ne 0) { throw 'Browser-extension component tests failed.' }
+      - name: Install uv for fusion
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+        with:
+          version: '0.13.7'
+      - name: Verify Windows-MCP fusion
+        run: |
+          node scripts/fusion-setup.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Fusion setup failed.' }
+          node scripts/test-fusion.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Fusion SDK tests failed.' }
+          $env:AGENTMOUSE_CHROME = ./scripts/get-test-chrome.ps1
+          node scripts/test-background-chrome.mjs --headless-test --fusion-test
+          if ($LASTEXITCODE -ne 0) { throw 'Fusion browser tests failed.' }
       - name: Publish ZIP and checksum
         env:
           GH_TOKEN: ${{ github.token }}

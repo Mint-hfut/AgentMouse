@@ -1,0 +1,118 @@
+{
+  "passed": true,
+  "desktopAcceptance": true,
+  "fusionTransport": true,
+  "extensionTransport": true,
+  "browserVersion": "Chrome/157.0.8103.38",
+  "foregroundProcess": "ChatGPT",
+  "chromeCompatibilityFlags": [
+    "--force-color-profile=srgb"
+  ],
+  "capture": "Chrome.Debugger",
+  "realChrome": true,
+  "fullyCoveredByForeground": true,
+  "centerCovered": true,
+  "checks": [
+    {
+      "action": "left",
+      "state": {
+        "c": 1,
+        "r": 0,
+        "s": 0,
+        "d": 0
+      },
+      "capturePixelsVerified": true,
+      "frameAdvanced": true,
+      "raisedAboveForeground": false,
+      "focusChanged": false,
+      "cursorChanged": false
+    },
+    {
+      "action": "right",
+      "state": {
+        "c": 1,
+        "r": 1,
+        "s": 0,
+        "d": 0
+      },
+      "capturePixelsVerified": true,
+      "frameAdvanced": true,
+      "raisedAboveForeground": false,
+      "focusChanged": false,
+      "cursorChanged": false
+    },
+    {
+      "action": "wheel",
+      "state": {
+        "c": 1,
+        "r": 1,
+        "s": 120,
+        "d": 0
+      },
+      "capturePixelsVerified": true,
+      "frameAdvanced": true,
+      "raisedAboveForeground": false,
+      "focusChanged": false,
+      "cursorChanged": false
+    },
+    {
+      "action": "slider",
+      "capturePixelsVerified": true,
+      "frameAdvanced": true,
+      "buttonReleased": true,
+      "focusChanged": false,
+      "raisedAboveForeground": false,
+      "cursorChanged": false
+    },
+    {
+      "action": "path-drag",
+      "capturePixelsVerified": true,
+      "frameAdvanced": true,
+      "buttonReleased": true,
+      "focusChanged": false,
+      "raisedAboveForeground": false,
+      "cursorChanged": false
+    },
+    {
+      "action": "long-press",
+      "capturePixelsVerified": true,
+      "frameAdvanced": true,
+      "buttonReleased": true,
+      "focusChanged": false,
+      "raisedAboveForeground": false,
+      "cursorChanged": false
+    },
+    {
+      "action": "double-click",
+      "capturePixelsVerified": true,
+      "frameAdvanced": true,
+      "buttonReleased": true,
+      "focusChanged": false,
+      "raisedAboveForeground": false,
+      "cursorChanged": false
+    },
+    {
+      "action": "ordered-point-selection",
+      "capturePixelsVerified": true,
+      "frameAdvanced": true,
+      "buttonReleased": true,
+      "focusChanged": false,
+      "raisedAboveForeground": false,
+      "cursorChanged": false
+    },
+    {
+      "action": "html5-drag-drop",
+      "capturePixelsVerified": true,
+      "frameAdvanced": true,
+      "buttonReleased": true,
+      "focusChanged": false,
+      "raisedAboveForeground": false,
+      "cursorChanged": false
+    },
+    {
+      "action": "cancel-during-drag",
+      "buttonReleased": true,
+      "focusChanged": false
+    }
+  ]
+}

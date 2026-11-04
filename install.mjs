@@ -13,7 +13,7 @@ try {
   for (let i = 2; i < process.argv.length; i++) {
     const key = process.argv[i];
     if (key === '--dry-run') options.dryRun = true;
-    else if (['--agent', '--mode', '--browser', '--home', '--install-dir', '--profile'].includes(key) && process.argv[i + 1] && !process.argv[i + 1].startsWith('--')) options[key.slice(2)] = process.argv[++i];
+    else if (['--agent', '--mode', '--browser', '--engine', '--home', '--install-dir', '--profile'].includes(key) && process.argv[i + 1] && !process.argv[i + 1].startsWith('--')) options[key.slice(2)] = process.argv[++i];
     else throw new Error('Usage: node install.mjs [--agent claude-code|codex|zcode|workbuddy|dsh|all] [--mode auto|mcp] [--profile web] [--dry-run] [--home path] [--install-dir path]');
   }
   if (process.platform !== 'win32' || process.arch !== 'x64' || Number(process.versions.node.split('.')[0]) < 18) throw new Error('AgentMouse requires Windows x64 and Node.js 18+.');
@@ -21,6 +21,7 @@ try {
     if (!process.stdin.isTTY) throw new Error('Use --agent codex (or another supported agent) for unattended installation.');
     const terminal = createInterface({ input: process.stdin, output: process.stdout });
     try {
+      if (!options.engine) options.engine = (await terminal.question('Engine / 引擎: 1 Windows-MCP + AgentMouse (requires uv), 2 AgentMouse only [1]: ')).trim() === '2' ? 'native' : 'fusion';
       console.log('AgentMouse / 选择要接入的 Agent\n1 Claude Code\n2 Codex\n3 ZCode\n4 WorkBuddy\n5 DSH\n6 All / 全部');
       const answer = await terminal.question('Select names or numbers, separated by commas / 输入名称或编号: ');
       options.agent = answer.trim() === '6' ? 'all' : answer.split(',').map(value => ({ 1: 'claude-code', 2: 'codex', 3: 'zcode', 4: 'workbuddy', 5: 'dsh' })[value.trim()] || value.trim()).join(',');
@@ -35,21 +36,24 @@ try {
   }
   const { installAgents, normalizeAgents } = await import('./scripts/install-lib.mjs');
   const agents = normalizeAgents(options.agent);
+  const engine = options.engine || 'native';
+  if (!['native', 'fusion'].includes(engine)) throw new Error('--engine must be native or fusion.');
   if (options.mode && !['auto', 'mcp'].includes(options.mode)) throw new Error('--mode must be auto or mcp.');
   if (options.browser && !['extension', 'none'].includes(options.browser)) throw new Error('--browser must be extension or none.');
   if (!options.dryRun && (!existsSync(join(root, 'dist/AgentMouse.exe')) || !existsSync(join(root, 'dist/AgentMouse.Cli.exe')))) (await import('./scripts/build-native.mjs')).buildNative(root);
   const home = options.home ? resolve(options.home) : homedir();
-  let runtimeRoot = resolve(options['install-dir'] || join(options.home ? home : (process.env.LOCALAPPDATA || join(home, 'AppData/Local')), 'AgentMouse/0.6.0-beta.3'));
+  let runtimeRoot = resolve(options['install-dir'] || join(options.home ? home : (process.env.LOCALAPPDATA || join(home, 'AppData/Local')), 'AgentMouse/0.7.0-beta.1' + (engine === 'fusion' ? '-fusion' : '')));
   // Packaged Windows hosts can redirect LocalAppData; persist the physical path for other processes.
   if (!options.dryRun) { await mkdir(runtimeRoot, { recursive: true }); runtimeRoot = await realpath(runtimeRoot); }
   const env = options.home ? { ...process.env, CODEX_HOME: join(home, '.codex'), ZCODE_STORAGE_DIR: join(home, '.zcode'), CLAUDE_CONFIG_DIR: join(home, '.claude'), DSH_HOME: join(home, '.dsh'), AGENTMOUSE_HOME: join(home, '.agentmouse') } : process.env;
   const native = options.mode === 'mcp' ? [] : agents.filter(name => ['codex', 'zcode'].includes(name));
   const mcp = agents.filter(name => !native.includes(name));
   const { installPlugins } = await import('./scripts/install-plugins.mjs');
-  const plugins = await installPlugins({ agents: native, sourceRoot: root, runtimeRoot, home, dryRun: !!options.dryRun, env });
-  const connections = mcp.length ? await installAgents({ agents: mcp, sourceRoot: root, runtimeRoot, home, profile: options.profile || 'web', dryRun: !!options.dryRun, env }) : null;
+  const fusion = engine === 'fusion' ? await (await import('./scripts/fusion-setup.mjs')).setupFusion({ sourceRoot: root, home, env, dryRun: !!options.dryRun }) : null;
+  const plugins = await installPlugins({ agents: native, sourceRoot: root, runtimeRoot, home, dryRun: !!options.dryRun, env, engine });
+  const connections = mcp.length ? await installAgents({ agents: mcp, sourceRoot: root, runtimeRoot, home, profile: options.profile || 'web', dryRun: !!options.dryRun, env, engine }) : null;
   const browser = options.browser === 'none' ? null : await (await import('./scripts/browser-setup.mjs')).setupBrowserBridge({ sourceRoot: options.dryRun ? root : native.length ? join(runtimeRoot, 'plugin') : runtimeRoot, home, env, dryRun: !!options.dryRun });
-  console.log(JSON.stringify({ plugins, connections, browser }, null, 2));
+  console.log(JSON.stringify({ engine, fusion, plugins, connections, browser }, null, 2));
   if (browser && !options.dryRun) console.log('Browser files prepared. Load the generated extension directory in Chrome once; the installer does not bypass Chrome permissions or enterprise policy.');
   console.log(options.dryRun ? 'Dry run: no settings or runtime files were changed.' : `Installed. Native plugins: ${native.join(', ') || 'none'}. MCP + skills only: ${mcp.join(', ') || 'none'}. Refresh/restart selected agents; enable desktop input once in AgentMouse before use.`);
 } catch (error) { console.error('AgentMouse: ' + error.message); process.exitCode = 1; }

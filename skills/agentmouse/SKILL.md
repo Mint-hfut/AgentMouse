@@ -7,6 +7,22 @@ description: Use AgentMouse MCP for background Windows/browser computer use with
 
 Discover the actual tool namespace from the host; do not invent one. The local controller requires Windows x64 and Node 18+. Native HWND capture requires Windows 10 1903+. Screenshot-guided tasks need an image-capable model.
 
+## Windows-MCP fusion engine
+
+If the catalog exposes `Snapshot`, `Screenshot`, `Click`, `Move`, and `Scroll`, use this engine instead of the native-only `pointer_observe/click/drag/scroll` names below. The lifecycle/discovery tools `pointer_open/status/pause/list_apps/list_windows/inspect_window` remain available.
+
+1. Discover running apps with `App(mode="find", query="微信")` or `pointer_list_apps`; list HWND/browser IDs with `App(mode="list")`.
+2. Call `Snapshot(window_id="...")` for a real background image plus Windows-MCP controls, or `Screenshot(window_id="...")` for image only. Without a target, these are desktop overviews and cannot authorize a target action.
+3. Pass the returned `observationId` as `observation_id`, alongside the same `window_id`, to `Click`. Choose either `loc=[x,y]` in the returned coordinate space or a `label` from that exact Snapshot. Labels are scoped to one observation/window.
+4. Drag with `Move(drag=True, from_loc=[x,y], loc=[endX,endY], duration=0.65, window_id=..., observation_id=...)`; optional `path` is a list of intermediate `[x,y]` points. The real cursor is never the implicit start. Browser wheel uses `Scroll` with an explicit loc/label and direction.
+5. Reobserve and verify a changed control/image. `inputDelivered` is not business success. Pause after work or interruption.
+
+Windows-MCP's `FileSystem`, `Process`, `Registry`, `PowerShell`, HTTP `Scrape`, `DisplayInventory`, `Clipboard`, and `Notification` are retained. File/command/clipboard operations act on the real shared system. `WaitFor` reads controls in one native target; it does not create an input observation.
+
+Independent keyboard remains unavailable: `Type`, `Shortcut`, Ctrl/batch selection and `MultiEdit` return explicit errors. `App` discovers apps/windows; automatic launch/resize/switch, foreground DOM scraping, middle click, native hover and horizontal/covered-native wheel are not substituted with physical input. Never work around these limits by injecting foreground keys/mouse while the user works elsewhere.
+
+The sections below describe the native-only engine's tool names and the shared discovery/verification rules.
+
 ## Connect and select the correct channel
 
 - `pointer_open` opens the controller; new instances start paused. The user enables whole-desktop input once in its window. MCP cannot arm it. There is no permanent application binding.

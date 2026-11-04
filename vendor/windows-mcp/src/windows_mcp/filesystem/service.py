@@ -1,0 +1,468 @@
+"""
+File system service for the Windows MCP server.
+Provides structured, safe file operations as an alternative to raw Shell commands.
+"""
+
+from datetime import datetime
+from pathlib import Path
+import codecs
+import fnmatch
+import logging
+import shutil
+import stat
+import os
+from windows_mcp.desktop.utils import is_elevated
+
+from windows_mcp.filesystem.views import (
+    MAX_READ_SIZE,
+    MAX_RESULTS,
+    File,
+    Directory,
+)
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+# Windows tools write byte order marks: Windows PowerShell's `>` and `reg export`
+# write UTF-16 LE, and Notepad and `Out-File -Encoding utf8` write UTF-8 with a BOM.
+_BOM_ENCODINGS = (
+    (codecs.BOM_UTF8, 'utf-8-sig'),
+    (codecs.BOM_UTF16_LE, 'utf-16'),
+    (codecs.BOM_UTF16_BE, 'utf-16'),
+)
+
+
+def _bom_encoding(file_path: Path, encoding: str) -> str:
+    """Return the encoding named by the file's BOM when reading as UTF-8, else *encoding*."""
+    if codecs.lookup(encoding).name != 'utf-8':
+        return encoding
+    with open(file_path, 'rb') as f:
+        head = f.read(3)
+    for bom, bom_encoding in _BOM_ENCODINGS:
+        if head.startswith(bom):
+            return bom_encoding
+    return encoding
+
+
+def _rmtree(path: Path) -> None:
+    """Remove a directory tree, including read-only entries, as `rd /s` does.
+
+    Git marks the files under .git/objects read-only, so a plain rmtree cannot
+    delete a cloned repository on Windows.
+    """
+    def clear_readonly(func, entry, exc):
+        if not isinstance(exc, PermissionError):
+            raise exc
+        os.chmod(entry, stat.S_IWRITE)
+        func(entry)
+
+    shutil.rmtree(str(path), onexc=clear_readonly)
+
+
+def read_file(path: str, offset: int | None = None, limit: int | None = None, encoding: str = 'utf-8') -> str:
+    """Read the contents of a text file."""
+    file_path = Path(path).resolve()
+
+    if not file_path.exists():
+        return f'Error: File not found: {file_path}'
+    if not file_path.is_file():
+        return f'Error: Path is not a file: {file_path}'
+    if limit is not None and limit < 0:
+        return 'Error: limit cannot be negative.'
+    if offset is None and limit is None and file_path.stat().st_size > MAX_READ_SIZE:
+        return f'Error: File too large ({file_path.stat().st_size:,} bytes). Maximum is {MAX_READ_SIZE:,} bytes. Use offset/limit parameters or the PowerShell tool for large files.'
+
+    try:
+        encoding = _bom_encoding(file_path, encoding)
+        with open(file_path, 'r', encoding=encoding, errors='replace') as f:
+            if offset is not None or limit is not None:
+                start = (offset or 1) - 1  # Convert 1-based to 0-based
+                start = max(0, start)
+                end = start + limit if limit else float('inf')
+                selected = []
+                size = 0
+                total = 0
+                at_line_start = True
+                # Stream the file instead of loading it, so ranges of files over MAX_READ_SIZE
+                # work. readline() is capped, so a very long line is read in pieces.
+                while piece := f.readline(MAX_READ_SIZE):
+                    if at_line_start:
+                        total += 1
+                    at_line_start = piece.endswith('\n')
+                    if start < total <= end:
+                        size += len(piece)
+                        if size > MAX_READ_SIZE:
+                            return f'Error: The requested lines add up to more than {MAX_READ_SIZE:,} characters. Use a smaller limit or the PowerShell tool.'
+                        selected.append(piece)
+                content = ''.join(selected)
+                return f'File: {file_path}\nLines {start + 1}-{min(end, total)} of {total}:\n{content}'
+            else:
+                content = f.read()
+                return f'File: {file_path}\n{content}'
+    except UnicodeDecodeError:
+        return f'Error: Unable to read file as text with encoding "{encoding}". File may be binary.'
+    except PermissionError:
+        msg = f'Error: Permission denied: {file_path}'
+        if not is_elevated():
+            msg += "\n\nHINT: This operation may require an elevated (Administrator) terminal."
+        return msg
+    except Exception as e:
+        return f'Error reading file: {e}'
+
+
+def write_file(path: str, content: str, append: bool = False, encoding: str = 'utf-8', create_parents: bool = True) -> str:
+    """Write or append text content to a file."""
+    file_path = Path(path).resolve()
+
+    try:
+        if create_parents:
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+
+        mode = 'a' if append else 'w'
+        with open(file_path, mode, encoding=encoding) as f:
+            # Text mode turns '\n' into '\r\n', so CRLF content would be saved as '\r\r\n'.
+            f.write(content.replace('\r\n', '\n'))
+
+        action = 'Appended to' if append else 'Written to'
+        size = file_path.stat().st_size
+        return f'{action} {file_path} ({size:,} bytes)'
+    except PermissionError:
+        msg = f'Error: Permission denied: {file_path}'
+        if not is_elevated():
+            msg += "\n\nHINT: This operation may require an elevated (Administrator) terminal."
+        return msg
+    except Exception as e:
+        return f'Error writing file: {e}'
+
+
+def _kind_mismatch(src: Path, dst: Path, verb: str) -> str | None:
+    """Return an error if *dst* exists and only one of *src* and *dst* is a directory.
+
+    An overwrite removes the destination first, so letting a file replace a directory
+    would delete everything in it.
+    """
+    if not dst.exists() or src.is_dir() == dst.is_dir():
+        return None
+    if dst.is_dir():
+        return (
+            f'Error: Destination is a directory: {dst}. A file cannot replace a directory; '
+            f'to {verb} the file into it, use {dst / src.name} as the destination.'
+        )
+    return f'Error: Destination is a file: {dst}. A directory cannot replace a file.'
+
+
+def copy_path(source: str, destination: str, overwrite: bool = False) -> str:
+    """Copy a file or directory to a new location."""
+    src = Path(source).resolve()
+    dst = Path(destination).resolve()
+
+    if not src.exists():
+        return f'Error: Source not found: {src}'
+
+    if src == dst or dst in src.parents or (src.is_dir() and src in dst.parents):
+        return 'Error: Source and destination paths overlap.'
+
+    if error := _kind_mismatch(src, dst, 'copy'):
+        return error
+
+    if dst.exists() and not overwrite:
+        return f'Error: Destination already exists: {dst}. Set overwrite=True to replace.'
+
+    try:
+        if src.is_file():
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(str(src), str(dst))
+            return f'Copied file: {src} -> {dst}'
+        elif src.is_dir():
+            if dst.exists() and overwrite:
+                _rmtree(dst)
+            shutil.copytree(str(src), str(dst))
+            return f'Copied directory: {src} -> {dst}'
+        else:
+            return f'Error: Unsupported file type: {src}'
+    except PermissionError:
+        msg = 'Error: Permission denied.'
+        if not is_elevated():
+            msg += "\n\nHINT: This operation may require an elevated (Administrator) terminal."
+        return msg
+    except Exception as e:
+        return f'Error copying: {e}'
+
+
+def move_path(source: str, destination: str, overwrite: bool = False) -> str:
+    """Move or rename a file or directory."""
+    src = Path(source).resolve()
+    dst = Path(destination).resolve()
+
+    if not src.exists():
+        return f'Error: Source not found: {src}'
+
+    # On a case-insensitive file system, renaming 'a.txt' to 'A.txt' resolves to the source.
+    raw_dst = Path(destination).absolute()
+    if (
+        src == dst
+        and raw_dst.name != src.name
+        and raw_dst.name.casefold() == src.name.casefold()
+        and raw_dst.parent.resolve() == src.parent
+    ):
+        try:
+            src.rename(src.with_name(raw_dst.name))
+            return f'Moved: {src} -> {src.with_name(raw_dst.name)}'
+        except Exception as e:
+            return f'Error moving: {e}'
+
+    if src == dst or dst in src.parents or (src.is_dir() and src in dst.parents):
+        return 'Error: Source and destination paths overlap.'
+
+    if error := _kind_mismatch(src, dst, 'move'):
+        return error
+
+    if dst.exists() and not overwrite:
+        return f'Error: Destination already exists: {dst}. Set overwrite=True to replace.'
+
+    try:
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        if dst.exists() and overwrite:
+            if dst.is_dir():
+                _rmtree(dst)
+            else:
+                dst.unlink()
+        shutil.move(str(src), str(dst))
+        return f'Moved: {src} -> {dst}'
+    except PermissionError:
+        msg = 'Error: Permission denied.'
+        if not is_elevated():
+            msg += "\n\nHINT: This operation may require an elevated (Administrator) terminal."
+        return msg
+    except Exception as e:
+        return f'Error moving: {e}'
+
+
+def delete_path(path: str, recursive: bool = False) -> str:
+    """Delete a file or directory, removing links without following their targets."""
+    target = Path(path).absolute()
+
+    try:
+        if target.is_symlink():
+            target.unlink()
+            return f'Deleted file: {target}'
+        if target.is_junction():
+            target.rmdir()
+            return f'Deleted directory: {target}'
+        if not target.exists():
+            return f'Error: Path not found: {target}'
+        if target.is_file():
+            target.unlink()
+            return f'Deleted file: {target}'
+        elif target.is_dir():
+            if not recursive:
+                # Check if directory is empty
+                if any(target.iterdir()):
+                    return f'Error: Directory is not empty: {target}. Set recursive=True to delete non-empty directories.'
+                target.rmdir()
+            else:
+                _rmtree(target)
+            return f'Deleted directory: {target}'
+        else:
+            return f'Error: Unsupported file type: {target}'
+    except PermissionError:
+        msg = f'Error: Permission denied: {target}'
+        if not is_elevated():
+            msg += "\n\nHINT: This operation may require an elevated (Administrator) terminal."
+        return msg
+    except Exception as e:
+        return f'Error deleting: {e}'
+
+
+def _is_hidden(path: Path) -> bool:
+    """Return whether *path* has a dot name or the Windows hidden attribute.
+
+    Windows hides desktop.ini, AppData and NTUSER.DAT with the attribute, not a dot name.
+    lstat() reads a junction's own attribute, so the hidden legacy junctions in a profile
+    folder, such as My Documents, count as hidden although their targets are not.
+    """
+    if path.name.startswith('.'):
+        return True
+    try:
+        return bool(path.lstat().st_file_attributes & stat.FILE_ATTRIBUTE_HIDDEN)
+    except OSError:
+        return False
+
+
+def _is_hidden_below(root: Path, entry: Path, cache: dict[Path, bool]) -> bool:
+    """Return whether *entry* or a directory between *root* and *entry* is hidden.
+
+    *root* itself is not checked, so a hidden directory can still be listed explicitly.
+    """
+    path = root
+    for part in entry.relative_to(root).parts:
+        path = path / part
+        if path not in cache:
+            cache[path] = _is_hidden(path)
+        if cache[path]:
+            return True
+    return False
+
+
+def list_directory(path: str, pattern: str | None = None, recursive: bool = False, show_hidden: bool = False) -> str:
+    """List contents of a directory."""
+    dir_path = Path(path).resolve()
+
+    if not dir_path.exists():
+        return f'Error: Directory not found: {dir_path}'
+    if not dir_path.is_dir():
+        return f'Error: Path is not a directory: {dir_path}'
+
+    try:
+        entries: list[str] = []
+        count = 0
+        hidden: dict[Path, bool] = {}
+
+        if recursive:
+            iterator = dir_path.rglob(pattern or '*')
+        else:
+            iterator = dir_path.iterdir()
+
+        for entry in sorted(iterator, key=lambda e: (not e.is_dir(), e.name.lower())):
+            if pattern and not recursive and not fnmatch.fnmatch(entry.name, pattern):
+                continue
+            if not show_hidden and _is_hidden_below(dir_path, entry, hidden):
+                continue
+
+            count += 1
+            if count > MAX_RESULTS:
+                entries.append(f'... (truncated, {MAX_RESULTS}+ items)')
+                break
+
+            try:
+                size = entry.stat().st_size if entry.is_file() else 0
+            except OSError:
+                size = 0
+
+            rel = str(entry.relative_to(dir_path)) if recursive else entry.name
+            dir_entry = Directory(name=entry.name, is_dir=entry.is_dir(), size=size)
+            entries.append(dir_entry.to_string(relative_path=rel))
+
+        if not entries:
+            filter_msg = f' matching "{pattern}"' if pattern else ''
+            return f'Directory {dir_path} is empty{filter_msg}.'
+
+        header = f'Directory: {dir_path}'
+        if pattern:
+            header += f' (filter: {pattern})'
+        return f'{header}\n' + '\n'.join(entries)
+    except PermissionError:
+        msg = f'Error: Permission denied: {dir_path}'
+        if not is_elevated():
+            msg += "\n\nHINT: This operation may require an elevated (Administrator) terminal."
+        return msg
+    except Exception as e:
+        return f'Error listing directory: {e}'
+
+
+def search_files(path: str, pattern: str, recursive: bool = True) -> str:
+    """Search for files matching a glob pattern."""
+    search_root = Path(path).resolve()
+
+    if not search_root.exists():
+        return f'Error: Search path not found: {search_root}'
+    if not search_root.is_dir():
+        return f'Error: Search path is not a directory: {search_root}'
+
+    try:
+        results: list[str] = []
+        count = 0
+
+        if recursive:
+            iterator = search_root.rglob(pattern)
+        else:
+            iterator = search_root.glob(pattern)
+
+        for match in sorted(iterator, key=lambda e: e.name.lower()):
+            count += 1
+            if count > MAX_RESULTS:
+                results.append(f'... (truncated, {MAX_RESULTS}+ matches)')
+                break
+
+            try:
+                size = match.stat().st_size if match.is_file() else 0
+            except OSError:
+                size = 0
+
+            rel = str(match.relative_to(search_root))
+            dir_entry = Directory(name=match.name, is_dir=match.is_dir(), size=size)
+            results.append(dir_entry.to_string(relative_path=rel))
+
+        if not results:
+            return f'No matches found for "{pattern}" in {search_root}'
+
+        return f'Search: "{pattern}" in {search_root} ({min(count, MAX_RESULTS)} matches)\n' + '\n'.join(results)
+    except PermissionError:
+        msg = f'Error: Permission denied: {search_root}'
+        if not is_elevated():
+            msg += "\n\nHINT: This operation may require an elevated (Administrator) terminal."
+        return msg
+    except Exception as e:
+        return f'Error searching: {e}'
+
+
+def _strip_nt_prefix(path: str) -> str:
+    """Drop the ``\\\\?\\`` prefix that ``os.readlink`` keeps on absolute targets."""
+    if path.startswith('\\\\?\\UNC\\'):
+        return '\\\\' + path[8:]
+    if path.startswith('\\\\?\\'):
+        return path[4:]
+    return path
+
+
+def get_file_info(path: str) -> str:
+    """Get detailed metadata about a file or directory."""
+    target = Path(path).absolute()
+    is_link = target.is_symlink() or target.is_junction()
+    if not is_link:
+        target = target.resolve()
+
+    if not is_link and not target.exists():
+        return f'Error: Path not found: {target}'
+
+    try:
+        stat = target.lstat() if is_link else target.stat()
+        if target.is_symlink():
+            file_type = 'Symlink'
+        elif target.is_junction():
+            file_type = 'Junction'
+        else:
+            file_type = 'Directory' if target.is_dir() else 'File' if target.is_file() else 'Other'
+
+        file = File(
+            path=str(target),
+            type=file_type,
+            size=stat.st_size,
+            created=datetime.fromtimestamp(stat.st_ctime),
+            modified=datetime.fromtimestamp(stat.st_mtime),
+            accessed=datetime.fromtimestamp(stat.st_atime),
+            read_only=not os.access(target, os.W_OK),
+        )
+
+        if target.is_dir():
+            try:
+                items = list(target.iterdir())
+                file.contents_dirs = sum(1 for i in items if i.is_dir())
+                file.contents_files = sum(1 for i in items if i.is_file())
+            except PermissionError:
+                pass
+
+        if target.is_file():
+            file.extension = target.suffix or '(none)'
+
+        if is_link:
+            file.link_target = _strip_nt_prefix(os.readlink(target))
+
+        return file.to_string()
+    except PermissionError:
+        msg = f'Error: Permission denied: {target}'
+        if not is_elevated():
+            msg += "\n\nHINT: This operation may require an elevated (Administrator) terminal."
+        return msg
+    except Exception as e:
+        return f'Error getting file info: {e}'

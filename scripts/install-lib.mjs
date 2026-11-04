@@ -105,17 +105,18 @@ async function destinationPath(path) {
   catch (error) { if (error.code === 'ENOENT') return path; throw error; }
 }
 export async function copyRuntime(sourceRoot, runtimeRoot) {
-  const files = ['LICENSE', 'mcp-server.mjs', 'agentmouse.mjs', 'browser-router.mjs', 'bridge-client.mjs', 'browser-pointer.mjs', 'bridge-server.mjs', 'scripts/browser-setup.mjs', 'scripts/bridge-daemon.mjs', 'plugin.json', 'mcp.json', '.mcp.json', 'scripts/build-native.mjs', 'dist/AgentMouse.exe', 'dist/AgentMouse.Cli.exe'];
-  for (const folder of ['skills', 'commands', 'assets', 'adapters', 'browser-extension', '.claude-plugin', '.codex-plugin', '.zcode-plugin']) for (const file of await filesUnder(join(sourceRoot, folder))) files.push(join(folder, file));
+  const files = ['LICENSE', 'THIRD_PARTY_NOTICES.md', 'package.json', 'fusion-entry.mjs', 'fusion-worker.mjs', 'mcp-server.mjs', 'agentmouse.mjs', 'browser-router.mjs', 'bridge-client.mjs', 'browser-pointer.mjs', 'bridge-server.mjs', 'scripts/browser-setup.mjs', 'scripts/bridge-daemon.mjs', 'plugin.json', 'mcp.json', '.mcp.json', 'scripts/build-native.mjs'];
+  for (const folder of ['skills', 'commands', 'assets', 'adapters', 'fusion', 'browser-extension', '.claude-plugin', '.codex-plugin', '.zcode-plugin']) for (const file of await filesUnder(join(sourceRoot, folder))) if (!/(__pycache__|\.pyc$)/.test(file)) files.push(join(folder, file));
+  files.push('dist/AgentMouse.exe', 'dist/AgentMouse.Cli.exe');
   for (const file of files) {
     const bytes = await readFile(join(sourceRoot, file)); const target = join(runtimeRoot, file);
     if (!(await optionalRead(target))?.equals(bytes)) await atomicWrite(target, bytes);
   }
 }
-export async function installAgents({ agents, sourceRoot, runtimeRoot, home = homedir(), profile = 'web', dryRun = false, env = process.env, beforeWrite } = {}) {
+export async function installAgents({ agents, sourceRoot, runtimeRoot, home = homedir(), profile = 'web', dryRun = false, env = process.env, beforeWrite, engine = 'native' } = {}) {
   const names = normalizeAgents(Array.isArray(agents) ? agents.join(',') : agents);
   sourceRoot = resolve(sourceRoot); runtimeRoot = resolve(runtimeRoot); home = resolve(home);
-  const server = { command: process.execPath, args: [join(runtimeRoot, 'mcp-server.mjs')] };
+  const server = { command: process.execPath, args: [join(runtimeRoot, engine === 'fusion' ? 'fusion-entry.mjs' : 'mcp-server.mjs')] };
   const changes = [];
   async function stage(path, bytes) {
     path = await destinationPath(path); const before = await optionalRead(path); const after = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);

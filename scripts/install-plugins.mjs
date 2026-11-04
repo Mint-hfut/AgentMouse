@@ -25,7 +25,7 @@ export function installedPlugin(agent, listing) {
   return records.find(item => (item.name || item.plugin?.name) === 'agentmouse' || (item.id || item.pluginId || '').startsWith('agentmouse@'));
 }
 
-export async function installPlugins({ agents, sourceRoot, runtimeRoot, home = homedir(), env = process.env, dryRun = false, clients, run = execFileSync } = {}) {
+export async function installPlugins({ agents, sourceRoot, runtimeRoot, home = homedir(), env = process.env, dryRun = false, clients, run = execFileSync, engine = 'native' } = {}) {
   const names = agents.filter(name => ['codex', 'zcode'].includes(name));
   if (!names.length) return [];
   // Resolve every selected client before installing either one; never silently downgrade to MCP-only.
@@ -35,6 +35,7 @@ export async function installPlugins({ agents, sourceRoot, runtimeRoot, home = h
   if (dryRun) return results;
   const pluginRoot = join(runtimeRoot, 'plugin');
   await copyRuntime(sourceRoot, pluginRoot);
+  if (engine === 'fusion') await (await import('./fusion-setup.mjs')).configureFusion(pluginRoot);
   const version = JSON.parse(await readFile(join(sourceRoot, 'plugin.json'), 'utf8')).version;
   const catalog = { name: 'agentmouse', interface: { displayName: 'AgentMouse' }, plugins: [{ name: 'agentmouse', version, source: { source: 'local', path: './plugin' }, policy: { installation: 'AVAILABLE', authentication: 'ON_INSTALL' }, category: 'Productivity' }] };
   await mkdir(join(runtimeRoot, '.agents/plugins'), { recursive: true });

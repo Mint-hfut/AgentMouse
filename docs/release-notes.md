@@ -1,16 +1,11 @@
-AgentMouse 0.6.0-beta.3 — app discovery, window layers and frozen-frame input protection.
+AgentMouse 0.7.0-beta.1 — Windows-MCP + AgentMouse fusion.
 
-- Adds pointer_list_apps: running processes including WeChat/Weixin/微信 aliases, even when the app is in the tray or has no visible window. A missing visible window does not prove the app is closed.
-- Window inventory includes hidden/minimized states, PID, class, owner, bounds, foreground, front-to-back order and rectangular overlaps above the target.
-- Adds read-only pointer_inspect_window for accessible control names/roles/bounds. Uses built-in .NET UIAutomation in an isolated CLI process; no Python dependency, foreground input or copied upstream code.
-- Every click/drag/scroll declares its intended window ID. Mismatches are rejected. An observation with a window ID defaults to its real background surface, never a foreground crop.
-- Repeated/older native frames after input block subsequent input with inputAllowed=false / unverified_frame. Skills stop repeated clicks/relaunches when a target has no fresh frame.
-- Real owned-window regression verifies overlapping layers, controls, correct native-message recipient, wrong-target and frozen-frame rejection, and hidden/minimized discovery. Message receipt is tested separately from application business success.
+- One 27-tool MCP server combines Windows-MCP 0.8.8 system services/UIAutomation and AgentMouse-only background images/mouse execution. The supplied Windows-MCP source directory is unchanged; its bundled source retains MIT notices separately from AgentMouse's Apache-2.0 license.
+- Snapshot captures one HWND/browser target and returns scoped control labels, real PNG pixels, coordinateSpace and an observation token. Click/Move/Scroll must address that exact window/token; stale/wrong-target input is rejected. Drag has an explicit start and cannot inherit the real cursor position.
+- Windows-MCP FileSystem, Process, Registry, PowerShell, HTTP Scrape, DisplayInventory, Clipboard and Notification are retained. Its physical mouse hooks/overlay are not started. Keyboard shortcuts/typing, Ctrl batches, foreground App launch/switch/resize, foreground DOM scraping, middle click and horizontal wheel are unavailable in background mode, with no physical-input fallback.
+- Interactive install recommends fusion. Unattended: install.cmd --engine fusion --agent codex,zcode (or all). Requires uv; installs Python 3.14 and locked dependencies. Existing unattended commands without --engine keep native-only mode.
+- Official SDK/27-tool tests, all five host adapter configurations, and real Windows control-label/WGC/input/result integration passed. The complete real-extension fusion path also passed ten desktop cases with Chrome fully covered by the foreground ChatGPT window, with no detected focus, relative-z-order or physical-pointer interference. Headless integration is checked separately in CI.
 
-The reported WeChat trace used beta.2. Its logged input recipients were WeChat windows, not ZCode; the actual failure was unverified repeated input against a frozen capture, plus missing process discovery. WeChat → QQ Mail has not been verified working. Native message receipt does not guarantee a custom app responds; a covered WinForms button also received messages without raising its business Click event.
+Refresh/restart selected clients after installing. Enable input in the local controller; load/reload the generated Browser Bridge extension for browser tasks. Clipboard/system operations remain shared Windows operations. Real WeChat → QQ Mail and third-party CAPTCHA acceptance are not verified.
 
-The historical beta.2 ten-case covered Chrome desktop report remains available. Browser Bridge still needs the generated extension loaded manually. A new full desktop rerun interrupted by foreground changes is not called a new pass.
-
-Extract the ZIP and run install.cmd. Refresh/restart selected agent clients so they load eleven tools and the changed action schema. Close/reopen an older AgentMouse controller before input. If an older browser daemon is still running, restart Windows and reload the generated extension. Requires Windows x64 and Node 18+; native HWND capture requires Windows 10 1903+.
-
-中文：新增已运行程序查询、隐藏/最小化窗口与层级信息、只读控件树，以及操作后旧帧拦截。点击必须带明确目标窗口，目标不符拒绝执行。专项真实窗口测试通过，但不代表微信后台打开 QQ 邮箱已经成功；收到输入与业务成功必须分开验证。升级后刷新 Agent，加载 11 个工具和新参数，关闭旧控制器再打开新版。
+中文：融合 Windows-MCP 的系统工具和控件树，鼠标与真实后台画面统一走 AgentMouse，提供 27 个工具。目标窗口、局部控件标签、观察编号绑定；明确拒绝不支持的共享键盘和前台输入。Windows 与 Chrome 融合链路实测通过；不代表所有应用、微信邮箱或真实验证码都保证可用。运行 install.cmd --engine fusion --agent codex,zcode，升级后刷新智能体会话。

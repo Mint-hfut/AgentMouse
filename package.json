@@ -1,6 +1,6 @@
 {
   "name": "agentmouse",
-  "version": "0.6.0-beta.3",
+  "version": "0.7.0-beta.1",
   "private": true,
   "type": "module",
   "description": "Background computer use for AI agents with an independent pointer, MCP server, Agent Skills, and multi-agent-host installers.",
@@ -38,7 +38,20 @@
     "dist/AgentMouse.Cli.exe",
     "README.zh.md",
     "README.md",
-    "docs/"
+    "docs/",
+    "fusion-entry.mjs",
+    "fusion-worker.mjs",
+    "scripts/fusion-setup.mjs",
+    "vendor/windows-mcp/pyproject.toml",
+    "vendor/windows-mcp/uv.lock",
+    "vendor/windows-mcp/README.md",
+    "vendor/windows-mcp/LICENSE.md",
+    "THIRD_PARTY_NOTICES.md",
+    "fusion/client.py",
+    "fusion/engine.py",
+    "fusion/server.py",
+    "fusion/controls.py",
+    "vendor/windows-mcp/src/**/*.py"
   ],
   "engines": {
     "node": ">=18"
@@ -46,10 +59,12 @@
   "scripts": {
     "start": "node mcp-server.mjs",
     "build": "node scripts/build-native.mjs",
-    "test": "node test-mcp.mjs && node test-plugin.mjs && node test-install.mjs && node test-plugins-install.mjs && node test-browser-pointer.mjs && node test-browser-bridge.mjs && node test-bootstrap.mjs && node test-sdk.mjs",
+    "test": "node test-mcp.mjs && node test-plugin.mjs && node test-install.mjs && node test-plugins-install.mjs && node test-fusion-install.mjs && node test-browser-pointer.mjs && node test-browser-bridge.mjs && node test-bootstrap.mjs && node test-sdk.mjs",
     "test:state": "node scripts/test-native.mjs",
     "test:sdk": "node test-sdk.mjs",
-    "test:routing": "node scripts/test-native.mjs --routing"
+    "test:routing": "node scripts/test-native.mjs --routing",
+    "test:fusion": "node scripts/test-fusion.mjs",
+    "test:fusion:windows": "node scripts/test-fusion-windows.mjs"
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2"

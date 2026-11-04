@@ -8,13 +8,17 @@
 
 网页任务使用 **Browser Bridge**：取得真实标签页画面，按图像坐标发送鼠标按下、移动、释放；沿用当前 Chrome 和登录状态，不依赖网页 DOM 选择器、脚本点击或逐网站接口。桌面软件另有通用 Windows 采集和窗口消息通道。
 
-**当前为测试版。** beta.3 新增进程/窗口层级/控件识别与旧帧防重试，专项真实窗口回归通过。beta.2 的历史浏览器桌面验收：Chrome 全程被前台 ZCode 窗口遮挡，10 项本地操作及画面更新检查全部通过，包括滑块、拼图式拖动、顺序点选与中断释放；未检测到抢前台、窗口越过前台或无人工输入时真实鼠标移动。[桌面测试记录](docs/test-results/desktop-2026-11-04.json)。不能把它宣传成“所有软件、所有验证码都保证通过”。
+**当前为测试版。** 融合服务已通过真实 Windows 控件到后台点击，以及 Chrome 完全被前台窗口遮挡时的十项鼠标检查。[融合桌面记录](docs/test-results/fusion-desktop-2026-11-04.json)。这不代表所有应用或真实验证码均兼容。
+
+## Windows-MCP 融合模式
+
+新增融合版：Windows-MCP 的系统工具、目标控件树 + AgentMouse 后台截图与鼠标，统一提供 **27 个工具**。真实 Windows 控件标签到后台点击，以及被前台 ChatGPT 完全遮挡的 Chrome 十项检查均已通过。[融合能力、限制和用法](docs/fusion.md)。
 
 ## 一键安装到智能体
 
 需要 Windows x64、**Node.js 18+ x64（含 npm）** 和 .NET Framework。原生被遮挡窗口采集要求 Windows 10 1903+。
 
-下载 [Windows ZIP](https://github.com/Mint-hfut/AgentMouse/releases)，解压后双击 **`install.cmd`**，选择要接入的智能体。源码方式：
+下载 [Windows ZIP](https://github.com/Mint-hfut/AgentMouse/releases)，解压后双击 **`install.cmd`**，先选择融合或原生引擎，再选择要接入的智能体。融合模式还需安装 [uv](https://docs.astral.sh/uv/getting-started/installation/)，安装器会自动准备 Python 3.14 与锁定依赖。原生模式仍不需要 Python。源码方式：
 
 ```powershell
 git clone https://github.com/Mint-hfut/AgentMouse.git
@@ -25,7 +29,7 @@ cd AgentMouse
 源码安装会下载锁定依赖、禁用依赖生命周期脚本，并使用 Windows 自带的 .NET Framework 编译器构建程序，不要求 Visual Studio 或 .NET SDK。Codex 原生插件安装需要 Codex CLI；ZCode 自动查找标准目录或 PATH 中的客户端插件 CLI。
 
 ```powershell
-.\install.cmd --agent codex,zcode
+.\install.cmd --engine fusion --agent codex,zcode
 .\install.cmd --agent all
 .\install.cmd --agent dsh --profile web
 .\install.cmd --agent codex --mode mcp
@@ -56,6 +60,8 @@ node agentmouse.mjs browser-stop
 控制器目前为中文界面；Chrome 可能显示标准调试提示。当前一次只使用一个配对的浏览器资料和一个控制 Agent。
 
 ## 鼠标能力
+
+融合模式的工具见上方链接；以下为原生模式 11 工具。
 
 | MCP 工具 | 功能 |
 |---|---|
@@ -100,7 +106,7 @@ Chrome 在部分鼠标按下处理中会主动置前并激活窗口；仅仅不�
 
 ## 配置、备份与卸载
 
-运行目录默认 `%LOCALAPPDATA%\AgentMouse\0.6.0-beta.3`，会解析 Windows 打包应用重定向后的物理路径。浏览器配对目录 `~/.agentmouse/browser` 使用每用户密钥和仅监听本机的认证服务，密钥及私人浏览器资料不进仓库。
+运行目录默认 `%LOCALAPPDATA%\AgentMouse\0.7.0-beta.1`，融合模式增加 `-fusion` 后缀，并解析 Windows 打包应用重定向后的物理路径。浏览器配对目录 `~/.agentmouse/browser` 使用每用户密钥和仅监听本机的认证服务，密钥及私人浏览器资料不进仓库。
 
 安装保留其他配置并备份到运行目录 `backups/`。MCP 模式配置：Claude `~/.claude.json`、Codex `~/.codex/config.toml`、ZCode `~/.zcode/cli/config.json`、WorkBuddy `~/.workbuddy/mcp.json`、DSH `~/.dsh/profiles/<profile>/cordis.patch.yml`。原生升级只迁移 AgentMouse 自己的市场来源；原生命令失败明确报告可能完成的部分，仅 MCP 设置写入支持回滚。
 

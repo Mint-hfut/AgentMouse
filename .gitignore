@@ -5,3 +5,8 @@ compatibility-results/
 test-report*.json
 *.log
 *.tmp
+**/__pycache__/
+*.pyc
+vendor/windows-mcp/.venv/
+vendor/windows-mcp/src/*.egg-info/
+vendor/windows-mcp/assets/

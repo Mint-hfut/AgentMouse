@@ -10,6 +10,23 @@ using System.Windows.Forms;
 
 namespace AgentPointer {
 internal static class SelfTest {
+    internal static int FusionFixture(string pipe){
+        Guid identity;if(!pipe.StartsWith("agentmouse-background-",StringComparison.Ordinal)||!Guid.TryParse(pipe.Substring("agentmouse-background-".Length),out identity))throw new Exception("Private fixture pipe required");
+        var engine=new Engine{Armed=true};
+        using(var form=new PracticeForm(engine){NoActivate=true,ShowInTaskbar=false,Text="AgentMouse fusion fixture"})using(var timer=new System.Windows.Forms.Timer())using(var server=new Transport(engine,pipe)){
+            var probe=new RoutingButton{Bounds=form.TestButton.Bounds,Text="fusion fixture received 0",TrackReceipt=true};form.TestButton.Hide();form.Controls.Add(probe);
+            IntPtr foreground=Native.GetForegroundWindow();Native.Rect bounds;Native.GetWindowRect(foreground,out bounds);form.Location=new Point(bounds.Left+40,bounds.Top+40);
+            form.Shown+=delegate{
+                engine.FixtureWindow=form.Handle;Native.SetWindowPos(form.Handle,new IntPtr(1),0,0,0,0,0x13);
+                var devices=new[]{new Native.RawDevice{page=1,usage=2,flags=0x100,target=form.Handle},new Native.RawDevice{page=1,usage=6,flags=0x100,target=form.Handle}};
+                Native.RegisterRawInputDevices(devices,2,(uint)Marshal.SizeOf(typeof(Native.RawDevice)));server.Start();
+                Console.WriteLine(Json.Write(new{windowId=form.Handle.ToInt64().ToString(),foregroundUnchanged=Native.GetForegroundWindow()==foreground}));
+                Task.Run(()=>Console.ReadLine()).ContinueWith(done=>{try{form.BeginInvoke((Action)delegate{form.Close();});}catch(InvalidOperationException){}});
+            };
+            long started=InputTracker.Now;timer.Interval=33;timer.Tick+=delegate{Native.Point point;if(Native.GetCursorPos(out point))engine.Human.TrackPointer(point);if(InputTracker.Milliseconds(started)>60000)form.Close();};timer.Start();
+            Application.Run(form);engine.Pause("fixture done");return 0;
+        }
+    }
     internal static int Routing(){
         var engine=new Engine{Armed=true};PracticeForm target=null,cover=null;RoutingButton targetProbe=null,coverProbe=null;Exception startup=null;var ready=new ManualResetEventSlim();
         var ui=new Thread(delegate(){
@@ -54,7 +71,8 @@ internal static class SelfTest {
     }
     private sealed class RoutingButton : Button {
         internal volatile int Ups;
-        protected override void WndProc(ref System.Windows.Forms.Message message){if(message.Msg==Native.LEFTUP)Ups++;base.WndProc(ref message);}
+        internal bool TrackReceipt;
+        protected override void WndProc(ref System.Windows.Forms.Message message){if(message.Msg==Native.LEFTUP){Ups++;if(TrackReceipt)Text="fusion fixture received "+Ups;}base.WndProc(ref message);}
     }
     internal static int ProbeBackgroundCapture(string processName,string directory,string title=""){
         var candidates=Engine.Windows(IntPtr.Zero).FindAll(w=>string.Equals(w.ProcessName,processName,StringComparison.OrdinalIgnoreCase)&&(title==""||w.Name.Contains(title)));

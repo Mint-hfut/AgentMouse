@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
 import { mkdtemp, readFile, mkdir, writeFile, rm, cp } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { tmpdir } from 'node:os';
+import { tmpdir, homedir } from 'node:os';
 import { join, resolve, dirname, basename } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
@@ -18,7 +18,8 @@ if (process.argv[2] === '--serve') {
   await serve({ call: request => callApp(request, process.argv[3]) }).finished;
 } else {
   const headless = process.argv.includes('--headless-test');
-  const extensionTest = process.argv.includes('--extension-bridge-test');
+  const fusionTest = process.argv.includes('--fusion-test');
+  const extensionTest = fusionTest || process.argv.includes('--extension-bridge-test');
   if (typeof WebSocket !== 'function') throw new Error('This optional Chrome harness requires Node 22+ (the product still supports Node 18).');
   const temp = await mkdtemp(join(tmpdir(), 'agentmouse-background-'));
   const cli = join(root, 'dist/AgentMouse.Cli.exe');
@@ -95,9 +96,33 @@ if (process.argv[2] === '--serve') {
       const tabs=(await bridgeRequest(testConfig,'/call',{method:'list_tabs'})).result;
       const tab=tabs.find(tab=>tab.title.startsWith('APCOMPAT-'+marker));assert.ok(tab,'The real extension did not list the fixture tab');ready.windowId='browser:'+tab.id;
     }
-    client = new Client({ name: 'agentmouse-background-chrome', version: '0.6.0-beta.3' });
-    const serverArgs = extensionTest ? [join(root,'scripts/extension-test-server.mjs'),headless?'headless':pipe] : nativeMessages ? [fileURLToPath(import.meta.url), '--serve', pipe] : [join(root, 'scripts/browser-test-server.mjs'), 'ws://127.0.0.1:' + port + endpoint, targetId, headless ? 'headless' : pipe];
+    client = new Client({ name: 'agentmouse-background-chrome', version: '0.7.0-beta.1' });
+    let serverArgs = extensionTest ? [join(root,'scripts/extension-test-server.mjs'),headless?'headless':pipe] : nativeMessages ? [fileURLToPath(import.meta.url), '--serve', pipe] : [join(root, 'scripts/browser-test-server.mjs'), 'ws://127.0.0.1:' + port + endpoint, targetId, headless ? 'headless' : pipe];
+    if (fusionTest) {
+      const config = JSON.parse(await readFile(join(process.env.AGENTMOUSE_HOME || join(homedir(),'.agentmouse'),'fusion/config.json'),'utf8'));
+      const fixtureRuntime = join(temp,'fusion-runtime'); await mkdir(fixtureRuntime,{recursive:true});
+      let worker = await readFile(join(root,'fusion-worker.mjs'),'utf8');
+      worker = worker.replace("'./mcp-server.mjs'",JSON.stringify(pathToFileURL(join(root,'mcp-server.mjs')).href)).replace("'./browser-router.mjs'",JSON.stringify(pathToFileURL(join(root,'browser-router.mjs')).href));
+      const fixturePipe=headless?'headless':pipe;
+      worker = worker.replace('const call = browserRouter(callApp);',`let armed=true; const native=request=>{if(${JSON.stringify(fixturePipe)}!=='headless')return callApp(request,${JSON.stringify(fixturePipe)});if(request.method==='pause')armed=false;return Promise.resolve({ok:true,result:{armed,foregroundWindowId:'headless-test',backgroundWindowCapture:true,windowMessageGestures:true,backgroundButtonHeld:false}});};const call=browserRouter(native);`);
+      await writeFile(join(fixtureRuntime,'fusion-worker.mjs'),worker);
+      const runner=join(temp,'fusion-runner.mjs');
+      await writeFile(runner,`import{spawn}from'node:child_process';const child=spawn(${JSON.stringify(config.python)},${JSON.stringify([join(root,'fusion/server.py'),'--runtime',fixtureRuntime,'--node',process.execPath,'--version','integration-test'])},{stdio:'inherit',windowsHide:true,env:{...process.env,ANONYMIZED_TELEMETRY:'false',WINDOWS_MCP_DISABLE_FLASH:'1'}});child.once('exit',code=>{process.exitCode=code??1});`);
+      serverArgs=[runner];
+    }
     await client.connect(new StdioClientTransport({ command: process.execPath, args: serverArgs, cwd: root, env:{...process.env,...(extensionTest?{AGENTMOUSE_HOME:join(temp,'state')}:{})},stderr: 'pipe', maxBufferSize: 32 * 1024 * 1024 }));
+    if (fusionTest) {
+      const original = client.callTool.bind(client);
+      client.callTool = (request,...rest) => {
+        const a=request.arguments||{};let mapped=request;
+        const target={window_id:a.windowId,observation_id:a.observationId};
+        if(request.name==='pointer_observe')mapped={name:'Screenshot',arguments:{window_id:a.windowId}};
+        if(request.name==='pointer_click')mapped={name:'Click',arguments:{...target,loc:[a.x,a.y],button:a.button||'left',clicks:a.clickCount||1,hold_ms:a.holdMs||0}};
+        if(request.name==='pointer_drag')mapped={name:'Move',arguments:{...target,drag:true,from_loc:[a.x,a.y],loc:[a.toX,a.toY],duration:a.durationMs/1000,path:a.path?.map(p=>[p.x,p.y])}};
+        if(request.name==='pointer_scroll')mapped={name:'Scroll',arguments:{...target,loc:[a.x,a.y],direction:a.delta<0?'down':'up',wheel_times:Math.abs(a.delta)/120}};
+        return original(mapped,...rest);
+      };
+    }
     const text = result => { assert.ok(!result.isError, JSON.stringify(result)); return JSON.parse(result.content.find(item => item.type === 'text').text); };
     async function observe(name) {
       const result = await client.callTool({ name: 'pointer_observe', arguments: { windowId: ready.windowId, capture: 'window' } });
@@ -202,7 +227,7 @@ if (process.argv[2] === '--serve') {
     checks.push({ action: 'cancel-during-drag', buttonReleased: true, focusChanged: false });
     assert.equal(foreground().windowId, before.windowId);
     await observe('after'); await client.callTool({ name: 'pointer_pause', arguments: {} });
-    await writeFile(join(output, 'result.json'), JSON.stringify({ passed: true, desktopAcceptance: !headless, extensionTransport:extensionTest,browserVersion: browser.product, foregroundProcess: before.process, chromeCompatibilityFlags: compatibilityFlags, capture: nativeMessages ? 'Windows.Graphics.Capture' : 'Chrome.Debugger', realChrome: true, fullyCoveredByForeground: !headless, centerCovered: !headless, checks }, null, 2));
+    await writeFile(join(output, 'result.json'), JSON.stringify({ passed: true, desktopAcceptance: !headless, fusionTransport:fusionTest,extensionTransport:extensionTest,browserVersion: browser.product, foregroundProcess: before.process, chromeCompatibilityFlags: compatibilityFlags, capture: nativeMessages ? 'Windows.Graphics.Capture' : 'Chrome.Debugger', realChrome: true, fullyCoveredByForeground: !headless, centerCovered: !headless, checks }, null, 2));
     console.log(`PASS ${headless ? 'headless component integration (desktop acceptance NOT run)' : 'real covered Chrome'}: gestures and captured page updates. Report: ${output}`);
   } finally {
     if (client) await client.close();

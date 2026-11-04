@@ -7,7 +7,9 @@ AgentMouse has two input routes. Native Windows capture/messages provide desktop
 | Check | Evidence | Limit |
 |---|---|---|
 | Native plugin installation | Codex CLI 0.153.4 and ZCode CLI 0.17.1 report AgentMouse installed/enabled | Plugin-browser visual acceptance was stopped by the user; running conversations were not restarted |
-| Declared MCP connectivity | Official SDK reads cached plugin manifests, lists eleven tools, calls real native status | Separate from an actual model choosing a tool |
+| Declared MCP connectivity | Official SDK reads cached plugin manifests: 11 native-only tools or 27 fusion tools, with real status calls | Separate from an actual model choosing a tool |
+| Windows-MCP fusion | Real Windows control-label/WGC/background-message/result integration, SDK and five host adapter checks passed | Independent keyboard is unavailable; [fusion behavior and evidence](fusion.md) |
+| Fusion browser desktop workflow | Ten cases passed with Chrome fully covered by foreground ChatGPT | [Separate fusion report](test-results/fusion-desktop-2026-11-04.json); local fixture, not real CAPTCHA-provider acceptance |
 | Windows background capture | Real Chrome HWND pixels captured using Windows.Graphics.Capture while covered | Apps can stop repainting; no desktop-crop fallback |
 | Native inactive Chrome input | Further testing reproduced activation/raising by Chrome | Now blocked; use Browser Bridge |
 | Real browser extension | Chrome for Testing 157.0.8103.38, actual unpacked extension → authenticated bridge → MCP | Passed headless components and the separate covered-window desktop workflow |

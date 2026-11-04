@@ -17,6 +17,8 @@ try {
     $archive = Get-ChildItem -LiteralPath $stagingDir -Filter '*.tgz' | Select-Object -First 1
     tar.exe -xzf $archive.FullName -C $stagingDir
     if ($LASTEXITCODE -ne 0) { throw 'Archive extraction failed.' }
+    $privateArtifacts = Get-ChildItem -LiteralPath (Join-Path $stagingDir 'package') -Recurse -Directory | Where-Object { $_.Name -in @('.venv','__pycache__') -or $_.Name.EndsWith('.egg-info') }
+    if ($privateArtifacts) { throw 'Refusing to package generated Python environments/caches/installation metadata.' }
     $version = (Get-Content -LiteralPath (Join-Path $projectDir 'package.json') -Raw | ConvertFrom-Json).version
     $zipPath = Join-Path $releaseDir "AgentMouse-$version-windows-x64.zip"
     if (Test-Path -LiteralPath $zipPath) { throw "Release already exists: $zipPath" }
