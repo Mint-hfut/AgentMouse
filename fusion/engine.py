@@ -16,6 +16,8 @@ class FusionSession:
         tree = {"elements": []}
         if window_id and not window_id.startswith("browser:") and use_ui_tree:
             tree = await self.controls(window_id)
+            if tree.get("error") or tree.get("providerSucceeded") is False:
+                tree={**tree,"elements":[]}
         result = await self.client.call("observe", **({"windowId": window_id, "capture": "window"} if window_id else {}))
         window = result.get("window") or {}
         if tree.get("pid"):

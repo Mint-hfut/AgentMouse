@@ -1,6 +1,6 @@
 ---
 name: agentmouse-start
-description: Start the AgentMouse controller when the user requests this plugin's start/open command. Does not start arbitrary apps or enable input automatically.
+description: Start the AgentMouse controller, with an explicit input-enable option for a user-authorized task. Does not start arbitrary apps.
 ---
 
-Call the plugin's `pointer_open`, then `pointer_status`. Explain whether the controller is running and paused. A new controller requires the user to enable whole-desktop input once; do not claim it is already enabled. Do not begin unrelated desktop work.
+Call the plugin's `pointer_open`, then `pointer_status`. Default to paused. If the user explicitly authorized input for this task, pass Full `allow_input=true` or Core `allowInput=true` without another confirmation. Report the actual returned state. Do not begin unrelated desktop work.

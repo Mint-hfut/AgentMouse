@@ -2,7 +2,7 @@
 
 Status: two input defects reproduced and fixed in source; the persistent WeChat hang's root cause remains unconfirmed. No live WeChat compatibility pass claimed. The user recovered by restarting WeChat; stopping AgentMouse alone had not restored interaction.
 
-The installed ZCode AgentMouse plugin was disabled. Its controller was paused and closed, and related Fusion/worker/browser processes were stopped. No further live WeChat UIAutomation, capture or input is authorized by this investigation phase. An independent Codex chat reviewed code and the specific trace read-only, without modifying files or contacting the live app.
+The installed ZCode AgentMouse plugin was disabled. Its controller was paused and closed, and related Fusion/worker/browser processes were stopped. Initial containment prohibited further live operations. The user later explicitly requested a controlled test after restarting WeChat; the result is recorded below. An independent Codex chat reviewed the earlier trace read-only.
 
 ## Observed evidence
 
@@ -35,3 +35,11 @@ Delayed DOWN, delayed UP, pause during a hold and controller shutdown during a h
 Still required: isolate target-side UIA/provider behavior and validate the actual WeChat task without recurrence. The previous incident has no target-side dump, so these reproduced input defects do not establish which operation caused its persistent state. Keep real WeChat quarantined and the user's installed plugin disabled; do not publish/install this source patch as a verified WeChat fix. Queued cleanup cannot recover a permanently blocked target thread, and killing all sender processes is not a guaranteed cleanup path.
 
 Do not publish the private trace, screenshots, temporary script or account data as test artifacts.
+
+## Later code audit and explicitly authorized live pilot
+
+Capture now uses a short-lived helper process, returning only after frame/session disposal. Timeout/pause stops the owned helper instead of queueing cleanup behind blocked capture work. Post-action validation also requires different image pixels, not only a new timestamp. Full/Core gained an explicit enable option for already-authorized tasks; default startup stays paused, input monitoring must be ready, and disconnect cleanup covers enable races.
+
+The user's restarted WeChat was selected by PID and process creation time for a native-only pilot. UIA stayed blocked. Real images returned; a click reached `Qt51514QWindowIcon`, with the physical cursor unchanged and button release reported. However, WeChat raised itself and the QQ Mail conversation did not open. The controller automatically paused, and was closed afterward. No email was read. Read-only Win32 metadata later showed enabled/non-hung/no target-thread capture; those checks do not prove healthy physical interaction or identify the earlier persistent hang.
+
+[Full audit and regression scope](../audits/2026-11-04.md), [sanitized live result](../test-results/wechat-pilot-2026-11-04.json). Normal WeChat quarantine and old-client disablement remain; this is not a WeChat compatibility release.

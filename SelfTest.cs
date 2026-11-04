@@ -63,8 +63,12 @@ internal static class SelfTest {
             target.Invoke((Action)delegate{target.Hide();});
             listed=Engine.Windows(IntPtr.Zero).Find(w=>w.Handle==target.Handle);Assert(listed!=null&&!(bool)Obj(listed.Export())["canCapture"],"Hidden application window disappeared from inventory");
             Expect("window_missing",()=>engine.Dispatch(new Dictionary<string,object>{{"method","observe"},{"windowId",target.Handle.ToInt64().ToString()},{"capture","window"}}));
+            var shown=Obj(DesktopInventory.Query(new Dictionary<string,object>{{"method","show_window"},{"windowId",target.Handle.ToInt64().ToString()}}));
+            Assert((bool)shown["foregroundUnchanged"]&&Native.IsWindowVisible(target.Handle),"Hidden fixture did not show without activation");
+            Assert(((System.Collections.IList)Obj(Engine.Windows(IntPtr.Zero).Find(w=>w.Handle==target.Handle).Export())["overlappingWindowsAbove"]).Contains(cover.Handle.ToInt64().ToString()),"Showing the hidden fixture raised it above the cover");
             target.Invoke((Action)delegate{Native.ShowWindow(target.Handle,7);});
             listed=Engine.Windows(IntPtr.Zero).Find(w=>w.Handle==target.Handle);Assert(listed!=null&&(bool)Obj(listed.Export())["minimized"],"Minimized application window disappeared from inventory");
+            Expect("unsupported",()=>DesktopInventory.Query(new Dictionary<string,object>{{"method","show_window"},{"windowId",target.Handle.ToInt64().ToString()}}));
             Assert(Native.GetForegroundWindow()==foreground,"Read/fixture test changed foreground");
             Console.WriteLine("PASS real own-window routing: covering layer inventory, UIAutomation, wrong-target rejection, covered native-message recipient, frozen post-action frame rejection, hidden-window discovery; foreground retained. Native message receipt is not a WinForms Click/business-success assertion.");return 0;
         }finally{
@@ -198,12 +202,21 @@ internal static class SelfTest {
         e.Armed=true;e.PointerVisible=false;Assert(!e.ShowPointer,"Display preference must stay effective");
         e.PointerVisible=true;e.Stopped=true;Assert(!e.ShowPointer,"Stopped input must hide the overlay");
         var status=Obj(e.Status());Assert(!(bool)Obj(status["pointer"])["visible"],"Status must agree with overlay state");
-        Assert(!Engine.FrameAdvanced(10,100,Tuple.Create(10u,100L)),"Repeated post-action frame must block input");
-        Assert(!Engine.FrameAdvanced(10,99,Tuple.Create(10u,100L)),"Older post-action frame must block input");
-        Assert(Engine.FrameAdvanced(10,101,Tuple.Create(10u,100L)),"A newly rendered frame must permit reassessment");
-        Assert(Engine.FrameAdvanced(11,99,Tuple.Create(10u,100L)),"A reused HWND in another process must not inherit the old frame receipt");
+        Assert(!Engine.FrameAdvanced(10,100,"new",Tuple.Create(10u,100L,"old")),"Repeated post-action timestamp must block input");
+        Assert(!Engine.FrameAdvanced(10,99,"new",Tuple.Create(10u,100L,"old")),"Older post-action frame must block input");
+        Assert(!Engine.FrameAdvanced(10,101,"old",Tuple.Create(10u,100L,"old")),"New capture timestamps with identical pixels must block repeat input");
+        Assert(Engine.FrameAdvanced(10,101,"new",Tuple.Create(10u,100L,"old")),"A new image may permit reassessment");
+        Assert(Engine.FrameAdvanced(11,99,"old",Tuple.Create(10u,100L,"old")),"A reused HWND in another process must not inherit the old frame receipt");
+        var enabling=new Engine();Expect("input_monitor_unavailable",()=>enabling.Dispatch(Json.Read("{\"method\":\"enable\"}")));
+        enabling.InputMonitoringReady=true;enabling.Dispatch(Json.Read("{\"method\":\"enable\"}"));Assert(enabling.Armed,"Explicit enable failed after input monitoring was ready");enabling.Pause("fixture");enabling.MessageButtonHeld=true;Expect("contact_unreleased",()=>enabling.Dispatch(Json.Read("{\"method\":\"enable\"}")));
+        enabling.MessageButtonHeld=false;enabling.Mode="touch";Expect("unsupported",()=>enabling.Dispatch(Json.Read("{\"method\":\"enable\"}")));
+        Expect("capture_timeout",()=>WindowCapture.RunHelper("--capture-stall-self-test",150));Assert(!WindowCapture.HelperActive,"Timed-out capture helper remained registered");
+        var cancelled=Task.Run(()=>WindowCapture.RunHelper("--capture-stall-self-test",4000));
+        Assert(SpinWait.SpinUntil(()=>WindowCapture.HelperActive,2000),"Capture cancellation fixture did not start");WindowCapture.Reset();
+        Expect("capture_interrupted",()=>cancelled.GetAwaiter().GetResult());Assert(!WindowCapture.HelperActive,"Cancelled capture helper remained registered");
         Assert(DesktopInventory.Matches("Weixin","微信")&&DesktopInventory.Matches("WeChatAppEx","wechat"),"WeChat process aliases");
         Assert(DesktopInventory.Quarantined("Weixin.exe")&&DesktopInventory.Quarantined("WECHAT")&&DesktopInventory.Quarantined("WeChatAppEx")&&!DesktopInventory.Quarantined("AgentMouse.Cli"),"Incident quarantine covers WeChat processes without blocking the owned fixture");
+        Assert(DesktopInventory.PilotMatches("42:123",42,123)&&!DesktopInventory.PilotMatches("42:122",42,123)&&!DesktopInventory.PilotMatches("41:123",42,123)&&!DesktopInventory.PilotMatches("",42,123),"Native pilot must match both PID and process creation time");
         e.X=120;e.Y=240;e.Human.TrackPointer(new Native.Point(10,20));e.Human.TrackPointer(new Native.Point(30,40));
         Assert(e.X==120&&e.Y==240,"Human pointer tracking must not change Agent coordinates");
         Assert(e.Human.Sequence==1,"Human pointer motion must be detected");

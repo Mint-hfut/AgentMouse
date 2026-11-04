@@ -47,6 +47,9 @@ internal static class Native {
     [DllImport("user32.dll")] internal static extern bool IsWindow(IntPtr w);
     [DllImport("user32.dll")] internal static extern bool IsWindowVisible(IntPtr w);
     [DllImport("user32.dll")] internal static extern bool IsWindowEnabled(IntPtr w);
+    [DllImport("user32.dll")] internal static extern bool IsHungAppWindow(IntPtr w);
+    [StructLayout(LayoutKind.Sequential)] internal struct GuiThreadInfo {public uint Size,Flags;public IntPtr Active,Focus,Capture,MenuOwner,MoveSize,Caret;public Rect CaretBounds;}
+    [DllImport("user32.dll")] internal static extern bool GetGUIThreadInfo(uint thread,ref GuiThreadInfo info);
     [DllImport("user32.dll")] internal static extern bool IsIconic(IntPtr w);
     [DllImport("user32.dll")] internal static extern bool ShowWindow(IntPtr w,int command);
     [DllImport("user32.dll")] internal static extern bool GetWindowRect(IntPtr w,out Rect rect);

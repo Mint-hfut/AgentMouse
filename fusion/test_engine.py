@@ -1,7 +1,11 @@
 import unittest
 import sys
+import os
+from unittest.mock import patch
+from types import SimpleNamespace
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from client import AgentMouseClient
 from engine import FusionSession
 from policy import require_allowed_process, require_allowed_window
 
@@ -59,6 +63,28 @@ class FusionTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(ValueError, "Unknown label"):
             await self.session.action("click", "123", "fixture-token", label=0)
 
+    async def test_failed_provider_discards_partial_labels(self):
+        async def failed(window):
+            return {"elements":[{"label":0,"center":{"x":1,"y":1}}],"providerSucceeded":False,"error":"Provider failed"}
+        self.session.controls=failed
+        result=await self.session.snapshot("123",True)
+        self.assertEqual(result["controls"]["elements"],[])
+        with self.assertRaisesRegex(ValueError,"Unknown label"):
+            self.session.resolve("123","fixture-token",label=0)
+
+    async def test_broken_worker_write_releases_pending_request(self):
+        class Broken:
+            def write(self,data):
+                raise BrokenPipeError("fixture")
+        transport=AgentMouseClient("node",Path("."))
+        transport.process=SimpleNamespace(returncode=None,stdin=Broken())
+        with self.assertRaisesRegex(ValueError,"worker_disconnected"):
+            await transport.call("status")
+        self.assertEqual(transport.pending,{})
+        transport.process.returncode=1
+        with self.assertRaisesRegex(ValueError,"worker_disconnected"):
+            await transport.call("status")
+
     async def test_desktop_overview_cannot_target_foreground(self):
         await self.session.snapshot(None)
         with self.assertRaisesRegex(ValueError, "wrong_target"):
@@ -80,6 +106,21 @@ class FusionTests(unittest.IsolatedAsyncioTestCase):
         require_allowed_process("AgentMouse.Cli.exe")
         with self.assertRaisesRegex(ValueError,"target_quarantined"):
             require_allowed_window({"process":"Weixin"})
+
+    async def test_native_pilot_never_allows_uia_or_another_process(self):
+        window={"process":"Weixin","pid":42,"nativePilot":"42:123"}
+        with patch.dict(os.environ,{"AGENTMOUSE_NATIVE_PILOT":"42:123"}):
+            require_allowed_window(window)
+            for other in [{**window,"pid":43},{**window,"nativePilot":"42:122"},{**window,"automationQuarantined":True}]:
+                with self.assertRaisesRegex(ValueError,"target_quarantined"):
+                    require_allowed_window(other)
+            with self.assertRaisesRegex(ValueError,"target_quarantined"):
+                require_allowed_window(window,accessibility=True)
+            with self.assertRaisesRegex(ValueError,"target_quarantined"):
+                require_allowed_process("Weixin")
+        with patch.dict(os.environ,{"AGENTMOUSE_NATIVE_PILOT":""}):
+            with self.assertRaisesRegex(ValueError,"target_quarantined"):
+                require_allowed_window(window)
 
 
 if __name__ == "__main__":

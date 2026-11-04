@@ -11,6 +11,8 @@ Discover the actual tool namespace from the host; do not invent one. The local c
 
 WeChat/Weixin/WeChatAppEx automation is quarantined after a reported application hang. Do not capture its HWND, query its UIAutomation provider or send input. Process/window discovery is still allowed. Do not restore, raise, relaunch or bypass this with host Bash, PowerShell, temporary scripts, SendInput or mouse_event. Report the unsupported task and leave the recovered app alone. Root cause is unconfirmed; fixture success is not a WeChat compatibility pass.
 
+An explicit user request to retry the repaired build permits a controlled native pilot scoped by the process PID and creation time through `AGENTMOUSE_NATIVE_PILOT`. Only the matching process's native screenshots/messages are opened; UIA remains quarantined in both adapters. It is not enabled in installed plugins. Do not silently enable a pilot in response to an ordinary failed tool call. For an explicitly authorized task, call Full `pointer_open(allow_input=true)` or Core `pointer_open(allowInput=true)` without repeatedly asking for the same authorization. Take a real image, one action, then reobserve. A changed layout, unchanged post-action pixels or unconfirmed release stops the run. Full `App(mode="show", window_id=...)` may reveal an existing hidden window at the bottom without activation; minimized restore is unsupported.
+
 Full no longer exposes arbitrary PowerShell execution. Snapshot defaults to image-only; set `use_ui_tree=true` only for an explicitly selected, non-quarantined target when controls are actually needed. Inspect `providerSucceeded/error`, and never interpret a failed provider's empty tree as success.
 
 ## Windows-MCP fusion engine
@@ -31,7 +33,7 @@ The sections below describe the native-only engine's tool names and the shared d
 
 ## Connect and select the correct channel
 
-- `pointer_open` opens the controller; new instances start paused. The user enables whole-desktop input once in its window. MCP cannot arm it. There is no permanent application binding.
+- `pointer_open` opens the controller paused by default. If the user explicitly authorizes input for the current task, use Core `allowInput=true` / Full `allow_input=true`; do not request the same authorization again. Input monitoring must be ready and no held contact may remain. There is no permanent application binding.
 - Inspect `pointer_status`, `pointer_list_apps(query="app name")` and `pointer_list_windows`. For **web tasks**, choose a **`browser:`** tab entry and call `pointer_observe` with that ID and `capture="window"`. Browser Bridge uses real images and mouse input, without DOM selectors or injected clicks.
 - If no browser entry is present, inspect `node agentmouse.mjs browser-status` when the bundle path is available. Installation prepares `~/.agentmouse/browser/extension`; the user must load that generated extension and review Chrome's permission once. `browser-setup` prepares files only. Do not bypass browser/enterprise policy or silently change user profiles.
 - Do not substitute native inactive Chrome mouse messages: Chromium can activate/raise its window. This route is blocked. Never activate, raise, restore or temporarily bring an app to the front to satisfy a background task.

@@ -1,0 +1,45 @@
+{
+  "date": "2026-11-04",
+  "sourceVersion": "0.7.0-beta.4",
+  "released": false,
+  "workflow": "WeChat to QQ Mail, read first email",
+  "result": "failed",
+  "inputAuthorization": "explicit user request; controller enabled through Full MCP without another confirmation",
+  "scope": "current Weixin PID and process creation time; native capture/messages only; UIA remained blocked",
+  "capture": {
+    "method": "Windows.Graphics.Capture",
+    "isolatedProcessPerRequest": true,
+    "resourcesClosedBeforeResponse": true,
+    "imageReturned": true,
+    "capturedWindowInitiallyBackground": true
+  },
+  "inputReceipt": {
+    "receiverClass": "Qt51514QWindowIcon",
+    "inputDelivered": true,
+    "buttonReleased": true,
+    "businessResultVerified": false,
+    "focusChanged": true,
+    "raisedAboveForeground": true,
+    "backgroundInterferenceFree": false,
+    "cursorChangedWithoutHumanInput": false,
+    "externalInputDuringAction": false,
+    "paused": true
+  },
+  "businessObservation": "QQ Mail reminder conversation did not open in the subsequent real image",
+  "emailRead": false,
+  "chatMessagesSent": false,
+  "uiaUsedOnWeChat": false,
+  "globalMouseFallbackUsed": false,
+  "readOnlyFollowUp": {
+    "windowEnabled": true,
+    "hungWindowHeuristic": false,
+    "targetThreadMouseCapture": "none",
+    "provesUserInteractionHealthy": false
+  },
+  "endState": "test stopped; controller closed; normal WeChat quarantine retained",
+  "limits": [
+    "No private screenshots, conversation text, mailbox data or account identifiers included.",
+    "Does not establish the cause of the earlier persistent WeChat hang.",
+    "A pointer that does not move the physical cursor is not proof of independent Windows focus."
+  ]
+}

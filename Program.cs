@@ -11,6 +11,8 @@ internal static class Program {
 #endif
         Native.DpiAware();
         try{
+            if(args.Length==2&&args[0]=="--capture-window"){Console.WriteLine(Json.Write(new{ok=true,result=WindowCapture.CaptureInProcess(Json.Read(args[1]))}));return 0;}
+            if(args.Length==1&&args[0]=="--capture-stall-self-test"){Thread.Sleep(Timeout.Infinite);return 0;}
             if(args.Length>0&&args[0]=="--state-self-test")return SelfTest.StateOnly();
             if(args.Length==1&&args[0]=="--routing-self-test")return SelfTest.Routing();
             if(args.Length==1&&args[0]=="--message-failure-self-test")return SelfTest.MessageFailures();

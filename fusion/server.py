@@ -37,17 +37,17 @@ def json_errors(function):
 def create_server(runtime, node, version):
     client = AgentMouseClient(node, runtime)
 
-    async def check_target(window_id):
+    async def check_target(window_id, accessibility=False):
         if window_id.startswith("browser:"):
             return
         windows=await client.call("list_windows")
         selected=next((window for window in windows if window["windowId"]==window_id),None)
         if selected is None:
             raise ValueError("window_missing: list target windows again")
-        require_allowed_window(selected)
+        require_allowed_window(selected,accessibility)
 
     async def controls(window_id):
-        await check_target(window_id)
+        await check_target(window_id,True)
         process = await asyncio.create_subprocess_exec(
             sys.executable, "-B", "-X", "utf8", str(runtime / "fusion/controls.py"), window_id,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
@@ -173,9 +173,14 @@ def create_server(runtime, node, version):
     async def multi_edit():
         raise ValueError("independent_keyboard_unavailable: no fields were edited")
 
-    @mcp.tool(name="App", description="Discover running apps and native/browser windows. mode=list returns windows; mode=find requires query. Tray/hidden/minimized is not stopped. Foreground launch/switch/resize modes are unavailable in background mode.")
+    @mcp.tool(name="App", description="Discover running apps and native/browser windows. mode=list returns windows; mode=find requires query. mode=show requires exact window_id and reveals an existing hidden native window at the bottom without activation; take a new Screenshot. Minimized restore and foreground launch/switch/resize are unavailable.")
     @json_errors
-    async def app(mode: Literal["list", "find"] = "list", query: str | None = None):
+    async def app(mode: Literal["list", "find", "show"] = "list", query: str | None = None, window_id: str | None = None):
+        if mode == "show":
+            if not window_id or window_id.startswith("browser:"):
+                raise ValueError("An exact native window_id is required")
+            await check_target(window_id)
+            return await client.call("show_window",windowId=window_id)
         if mode == "find":
             if not query:
                 raise ValueError("query is required")
@@ -198,6 +203,8 @@ def create_server(runtime, node, version):
         deadline = asyncio.get_running_loop().time() + timeout
         while True:
             result = await controls(window_id)
+            if result.get("error") or result.get("providerSucceeded") is False:
+                raise ValueError("accessibility_unavailable: provider failed; stopped without retrying it")
             for element in result.get("elements", []):
                 if text.casefold() in element.get("name", "").casefold() and (condition != "element_enabled" or element.get("enabled") is True):
                     return {"matched": True, "element": element}
@@ -213,8 +220,9 @@ def create_server(runtime, node, version):
     # Keep the existing lifecycle/discovery names so installed AgentMouse skills still work.
     @mcp.tool(name="pointer_open")
     @json_errors
-    async def pointer_open():
-        return await client.call("open")
+    async def pointer_open(allow_input: bool = False):
+        """Start paused, or enable input if the user explicitly authorized this task. No extra confirmation is needed for an already-authorized task."""
+        return await client.call("open",allowInput=allow_input)
 
     @mcp.tool(name="pointer_status")
     @json_errors

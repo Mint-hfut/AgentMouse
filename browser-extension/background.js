@@ -18,8 +18,8 @@ async function release(tabId) {
 }
 async function releaseAll() {
   await Promise.allSettled([...held.keys()].map(release));
-  await Promise.allSettled([...attached].map(tabId => chrome.debugger.detach({ tabId })));
-  attached.clear(); held.clear();
+  await Promise.allSettled([...attached].map(async tabId => {await chrome.debugger.detach({tabId});attached.delete(tabId);held.delete(tabId);}));
+  if(attached.size||held.size)throw new Error('Browser release/detach unconfirmed; stopped without forgetting held state');
 }
 chrome.debugger.onDetach.addListener(source => { attached.delete(source.tabId); held.delete(source.tabId); });
 chrome.debugger.onEvent.addListener((source, method, params) => { if (method === 'Input.dragIntercepted') http('/event', { tabId: source.tabId, method, params }).catch(error => { lastError = error.message; }); });
@@ -27,7 +27,7 @@ setInterval(() => { for (const [tabId, state] of held) if (Date.now() - state.at
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (sender.id !== chrome.runtime.id) return;
   if (message.type === 'status') { respond({ connected, stopped, attachedTabs: attached.size, lastError }); return; }
-  if (message.type === 'stop') { stopped = true; releaseAll().then(() => http('/call', { method: 'pause' }).catch(() => {})).then(() => respond({ ok: true })); return true; }
+  if (message.type === 'stop') { stopped = true; Promise.allSettled([releaseAll(),http('/call',{method:'pause'})]).then(results=>{const failed=results.find(x=>x.status==='rejected');if(failed)lastError=failed.reason.message;respond({ok:!failed,error:lastError});});return true; }
   if (message.type === 'resume') { stopped = false; respond({ ok: true }); }
 });
 async function command(item) {
@@ -59,7 +59,7 @@ while (BASE_URL && TOKEN) {
       result = { id: item.id, result: await command(item) };
     } catch (error) { result = { id: item.id, error: error.message }; }
     await http('/reply', result);
-  } catch (error) { connected = false; lastError = error.message; await releaseAll(); await delay(1000); }
+  } catch (error) { connected = false; lastError = error.message;try{await releaseAll();}catch(cleanup){stopped=true;lastError+='; '+cleanup.message;}await delay(1000); }
 }
 }
 run().catch(error => { lastError = error.message; });

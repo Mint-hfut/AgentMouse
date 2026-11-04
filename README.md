@@ -1,8 +1,8 @@
 # AgentMouse
 
-Unreleased native input fixes now skip transparent render children and queue cancellation/release after uncertain delivery. Old-backend regressions fail; the fixed Full MCP executes a real Qt button business event and passes delayed-DOWN/UP, pause and graceful shutdown release checks. Live WeChat remains quarantined and unverified; [incident evidence](docs/incidents/2026-11-04-wechat-hang.md). No client upgrade is performed by these tests.
+**WeChat workflow failed (2026-11-04):** An explicitly authorized live pilot after restart returned real images and kept the physical cursor still, but the click raised WeChat and did not open the QQ Mail conversation. No email was read. Normal WeChat quarantine remains; the previous persistent hang's cause is still unconfirmed. Keep the old installed plugin disabled.
 
-**Compatibility incident (2026-11-04):** WeChat became unresponsive after automation and required an app restart. Root cause is unconfirmed. Keep the installed AgentMouse plugin disabled and do not retry against live WeChat. Unreleased containment quarantines WeChat automation, makes UIA opt-in and removes arbitrary PowerShell from Full; this is not a root-cause fix.
+Unreleased source fixes capture lifetime/timeouts, unchanged-image guards, enable/disconnect races, partial accessibility labels, broken worker cleanup and extension release reporting. [Audit and scoped test evidence](docs/audits/2026-11-04.md). These fixes are not a WeChat business-compatibility pass or a client upgrade.
 
 **Background computer use for AI agents on Windows, with a pointer independent of your real mouse.**
 
@@ -62,7 +62,7 @@ The installer prepares a paired extension directory and prints its path, normall
 1. In Chrome, open `chrome://extensions`, enable Developer mode and choose **Load unpacked** yourself.
 2. Select the **generated directory printed by the installer**, not the unpaired source folder.
 3. Review the debugger permission. It provides page images and mouse input. No remote debugging port, new browser profile or disabled GPU is needed for normal use.
-4. Ask your agent to open AgentMouse, enable desktop input once in its local controller, then select a **`browser:`** entry from the window list for web work.
+4. Authorize the current input task; the agent can call Full `pointer_open(allow_input=true)` or Core `pointer_open(allowInput=true)` without repeating that confirmation. Select a **`browser:`** entry from the window list for web work.
 
 If enterprise policy blocks this, stop and consult your administrator. The installer does not bypass it. Browser preparation can also be run separately:
 
@@ -80,7 +80,7 @@ The following 11-tool reference is for native-only mode. Fusion tool names and t
 
 | Tool | Behavior |
 |---|---|
-| `pointer_open` | Open the local controller; a new instance starts paused |
+| `pointer_open` | Start paused, or enable with `allowInput=true` for an explicitly authorized task |
 | `pointer_status` | Controller/capture capabilities and browser pairing status |
 | `pointer_list_windows` | Native window identity, visibility, bounds, foreground, layers and connected browser tabs |
 | `pointer_list_apps` | Running processes by app name, including tray/hidden apps |
@@ -96,7 +96,7 @@ There is no permanent target binding. Every click/drag/scroll explicitly supplie
 
 Query `pointer_list_apps` before launching an app: missing visible windows can mean a running tray/minimized app. Hidden/minimized windows are discoverable but cannot be captured or clicked; AgentMouse does not automatically restore them. `pointer_inspect_window` adds Windows-MCP-style semantic context using built-in .NET UIAutomation, without a Python runtime or foreground input tools. Some custom apps expose only window chrome.
 
-After native input, an unchanged/older native capture timestamp returns `inputAllowed=false`; further input is rejected with `unverified_frame`. Stop and inspect rather than repeating clicks. Even a newer frame does not prove the app accepted a business action.
+Native capture uses one isolated helper per screenshot and closes capture resources before returning pixels. Timeout or pause can stop that helper directly. After native input, unchanged pixels or an unchanged/older timestamp returns `inputAllowed=false`; stop rather than repeating clicks. A changed image still does not prove a business outcome.
 
 **Follow the returned coordinate space:** native captures use physical desktop pixels; browser images use viewport CSS pixels. Both return image origin and scaling metadata:
 

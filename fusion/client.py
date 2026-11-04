@@ -11,9 +11,12 @@ class AgentMouseClient:
         self.pending = {}
         self.sequence = 0
         self.start_lock = asyncio.Lock()
+        self.reader = None
 
     async def start(self):
         async with self.start_lock:
+            if self.process is not None and (self.process.returncode is not None or (self.reader and self.reader.done())):
+                raise ValueError("worker_disconnected: reopen the MCP connection; do not retry uncertain input automatically")
             if self.process is None:
                 self.process = await asyncio.create_subprocess_exec(
                     self.node, str(self.runtime / "fusion-worker.mjs"),
@@ -41,14 +44,16 @@ class AgentMouseClient:
         identity = self.sequence
         future = asyncio.get_running_loop().create_future()
         self.pending[identity] = future
-        self.process.stdin.write((json.dumps({"id": identity, "method": method, **arguments}) + "\n").encode())
-        await self.process.stdin.drain()
         try:
+            self.process.stdin.write((json.dumps({"id": identity, "method": method, **arguments}) + "\n").encode())
+            await asyncio.wait_for(self.process.stdin.drain(),5)
             response = await asyncio.wait_for(future, 30)
             if not response.get("ok"):
                 error = response.get("error", {})
                 raise ValueError(f"{error.get('code')}: {error.get('message')}")
             return response["result"]
+        except (BrokenPipeError,ConnectionError) as error:
+            raise ValueError("worker_disconnected: action outcome may be unknown; do not retry input automatically") from error
         except (asyncio.CancelledError, TimeoutError):
             if method in {"click", "drag", "scroll", "move"}:
                 try:
@@ -58,6 +63,8 @@ class AgentMouseClient:
             raise
         finally:
             self.pending.pop(identity, None)
+            if not future.done():
+                future.cancel()
 
     async def close(self):
         if self.process:

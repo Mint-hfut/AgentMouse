@@ -6,6 +6,7 @@ AgentMouse has two input routes. Native Windows capture/messages provide desktop
 
 | Check | Evidence | Limit |
 |---|---|---|
+| Live WeChat after restart | Failed: isolated native screenshots returned, but one click raised WeChat and did not switch to QQ Mail reminders; controller paused | No email read; no WeChat UIA or physical mouse fallback. [Sanitized pilot](test-results/wechat-pilot-2026-11-04.json), [audit](audits/2026-11-04.md) |
 | Unreleased beta.4 native input fixes | Old-backend regressions fail; covered Qt button business event, transparent-child routing and four release-failure scenarios pass with fixes | Owned fixtures only; live WeChat remains quarantined. [Results](test-results/native-input-2026-11-04.json) |
 | Native plugin installation | Codex CLI 0.153.4 and ZCode CLI 0.17.1 report AgentMouse installed/enabled | Plugin-browser visual acceptance was stopped by the user; running conversations were not restarted |
 | Declared MCP connectivity | Current source SDK checks 11 Core or 26 Full tool names; historical beta.3 Full had 27 | Separate from an actual model choosing a tool; installed ZCode beta.3 is disabled after the WeChat incident |
@@ -70,9 +71,9 @@ Current-machine read-only checks found the already-running hidden WeChat main wi
 
 `npm run test:routing` uses two owned overlapping WinForms windows to verify layers, UIAutomation, wrong-target rejection, delivery to the covered target (never the decoy), replayed frozen-frame rejection, and hidden/minimized discovery. It checks actual native-message receipt, separately from a WinForms business Click event: the latter did not fire in the exploratory covered-button test. The new full-browser desktop rerun aborted when the foreground changed; its partial result is not recorded as a new complete desktop pass. The beta.2 ten-case desktop report above remains historical evidence.
 
-Windows 10 1903+ is required for HWND capture. A background MTA worker retains one WGC session. PID, window geometry, mapped-buffer layout and screenshot size are checked; preview images are capped at 4 million pixels. Minimized/cloaked windows are rejected. Unchanged surfaces can reuse the last frame, with `frameChanged=false` and the original native frame timestamp. No business success is inferred from that.
+Windows 10 1903+ is required for HWND capture. Each capture now runs in an isolated helper with an MTA thread, closing its frame/session before returning. Timeout/pause can terminate that owned helper directly. PID, geometry, mapped buffers and image size are checked; previews are capped at 4 million pixels. Minimized/cloaked windows are rejected. Image hashes drive `frameChanged`; unchanged post-action pixels block further input even when a new capture timestamp exists. No business success is inferred from that.
 
-Native input remains application-dependent. Focus/relative z-order changes pause input. Native dragging is intra-window; independent keyboard, persistent system hover and cross-app system drag/drop are not promised. Touch is experimental, can affect real cursor/focus, and is never a covered-window fallback. The controller starts paused and cannot be armed through MCP.
+Native input remains application-dependent. Focus/relative z-order changes pause input. Native dragging is intra-window; independent keyboard, persistent system hover and cross-app system drag/drop are not promised. Touch is experimental and is never a covered-window fallback. The controller starts paused. For an explicitly authorized task, Core `pointer_open(allowInput=true)` or Full `pointer_open(allow_input=true)` enables background input after input monitoring is ready and no held contact remains; an authorization already given need not be requested again.
 
 ## Browser bridge safety and pairing
 

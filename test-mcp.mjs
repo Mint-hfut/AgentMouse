@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { createHandler } from './mcp-server.mjs';
+import { createHandler, callApp } from './mcp-server.mjs';
+import { createServer as createPipeServer } from 'node:net';
+import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
@@ -7,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 let calls = [];
 const handler = createHandler(async request => {
   calls.push(request);
-  if (request.method === 'status') return { ok: true, result: { windowIdentityGuard: true, targetQuarantine: true, postActionFrameGuard: true, backgroundWindowCapture: true } };
+  if (request.method === 'status') return { ok: true, result: { isolatedWindowCapture: true, windowIdentityGuard: true, targetQuarantine: true, postActionFrameGuard: true, backgroundWindowCapture: true } };
   return request.method === 'observe'
     ? { ok: true, result: { scope: request.capture === 'window' ? 'window' : 'desktop', windowId: '1234', observationId: 'token', screenshot: { data: 'iVBORw==', mimeType: 'image/png', x: 10, y: 20, captureMethod: request.capture === 'window' ? 'Windows.Graphics.Capture' : 'desktop' } } }
     : { ok: false, error: { code: 'paused', message: 'paused' } };
@@ -43,7 +45,7 @@ const wrong = await ask('tools/call', { name: 'pointer_click', arguments: { wind
 assert.equal(JSON.parse(wrong.result.content[0].text).code, 'wrong_target'); assert.equal(calls.length, beforeWrong);
 let unsafeCalls = 0;
 const frozen = createHandler(async request => {
-  if (request.method === 'status') return { ok: true, result: { windowIdentityGuard: true, targetQuarantine: true, postActionFrameGuard: true, backgroundWindowCapture: true } };
+  if (request.method === 'status') return { ok: true, result: { isolatedWindowCapture: true, windowIdentityGuard: true, targetQuarantine: true, postActionFrameGuard: true, backgroundWindowCapture: true } };
   if (request.method === 'observe') return { ok: true, result: { window: { windowId: 'wechat' }, scope: 'window', inputAllowed: false, observationId: 'frozen', screenshot: { data: 'iVBORw==', mimeType: 'image/png', captureMethod: 'Windows.Graphics.Capture' } } };
   unsafeCalls++; return { ok: true, result: {} };
 });
@@ -52,13 +54,26 @@ await frozen({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'poi
 const blockedFrozen = await frozen({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'pointer_click', arguments: { windowId: 'wechat', observationId: 'frozen', x: 1, y: 2 } } });
 assert.equal(JSON.parse(blockedFrozen.result.content[0].text).code, 'unverified_frame'); assert.equal(unsafeCalls, 0);
 for (const claimed of [false, true]) {
-  const bad = createHandler(async request => request.method === 'status' ? { ok: true, result: { windowIdentityGuard: true, targetQuarantine: true, postActionFrameGuard: true, backgroundWindowCapture: claimed } } : { ok: true, result: { scope: 'desktop', screenshot: { data: 'iVBORw==', captureMethod: 'desktop' } } });
+  const bad = createHandler(async request => request.method === 'status' ? { ok: true, result: { isolatedWindowCapture: true, windowIdentityGuard: true, targetQuarantine: true, postActionFrameGuard: true, backgroundWindowCapture: claimed } } : { ok: true, result: { scope: 'desktop', screenshot: { data: 'iVBORw==', captureMethod: 'desktop' } } });
   await bad({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } });
   const rejected = await bad({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'pointer_observe', arguments: { capture: 'window', windowId: '1234' } } });
   assert.equal(rejected.result.isError, true);
   assert.equal(JSON.parse(rejected.result.content[0].text).code, claimed ? 'background_capture_missing' : 'upgrade_required');
 }
+{
+  const opening=[];const opened=createHandler(async request=>{opening.push(request);return {ok:true,result:{armed:request.allowInput===true}};});
+  await opened({jsonrpc:'2.0',id:1,method:'initialize',params:{protocolVersion:'2025-06-18'}});
+  await opened({jsonrpc:'2.0',id:2,method:'tools/call',params:{name:'pointer_open',arguments:{}}});assert.equal(opening.at(-1).allowInput,undefined);
+  await opened({jsonrpc:'2.0',id:3,method:'tools/call',params:{name:'pointer_open',arguments:{allowInput:true}}});assert.equal(opening.at(-1).allowInput,true);
+}
 
+{
+  const pipe='agentmouse-old-controller-'+randomUUID(),seen=[];
+  const server=createPipeServer(socket=>{let line='';socket.on('data',chunk=>{line+=chunk;if(line.includes('\n')){seen.push(JSON.parse(line.trim()).method);socket.end(JSON.stringify({ok:true,result:{windowIdentityGuard:true,postActionFrameGuard:true,targetQuarantine:true,isolatedWindowCapture:false}})+'\n');}});});
+  await new Promise(done=>server.listen('\\\\.\\pipe\\'+pipe,done));
+  try{const result=await callApp({method:'observe',capture:'window',windowId:'1'},pipe);assert.equal(result.error.code,'upgrade_required');assert.deepEqual(seen,['status']);}
+  finally{await new Promise(done=>server.close(done));}
+}
 const child = spawn(process.execPath, [fileURLToPath(new URL('./mcp-server.mjs', import.meta.url))], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
 const responses = createInterface({ input: child.stdout });
 let sequence = 0;

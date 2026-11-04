@@ -53,7 +53,8 @@ internal sealed class WindowItem {
                 if(Native.GetWindowRect(above,out b)&&b.Right>r.Left&&b.Left<r.Right&&b.Bottom>r.Top&&b.Top<r.Bottom)covering.Add(above.ToInt64().ToString());
             }
         }
-        return new {windowId=Handle.ToInt64().ToString(),title=Name,process=ProcessName,pid=Pid,className=Native.Class(Handle),ownerWindowId=Native.GetWindow(Handle,4).ToInt64().ToString(),zOrder=ZOrder,zOrderDirection="front-to-back",foreground=Native.GetForegroundWindow()==Handle,visible=visible,minimized=minimized,cloaked=hidden,canCapture=visible&&!minimized&&!hidden,automationQuarantined=DesktopInventory.Quarantined(ProcessName),bounds=new{x=r.Left,y=r.Top,width=r.Width,height=r.Height},overlappingWindowsAbove=covering,occlusionAssessment="bounding-rectangle overlap; transparent/shaped windows may differ"};
+        string pilot=DesktopInventory.NativePilot(Pid);
+        return new {windowId=Handle.ToInt64().ToString(),title=Name,process=ProcessName,pid=Pid,className=Native.Class(Handle),ownerWindowId=Native.GetWindow(Handle,4).ToInt64().ToString(),zOrder=ZOrder,zOrderDirection="front-to-back",foreground=Native.GetForegroundWindow()==Handle,visible=visible,enabled=Native.IsWindowEnabled(Handle),hung=Native.IsHungAppWindow(Handle),inputState=DesktopInventory.InputState(Handle),minimized=minimized,cloaked=hidden,canCapture=visible&&!minimized&&!hidden,automationQuarantined=DesktopInventory.Quarantined(ProcessName)&&pilot==null,nativePilot=pilot,bounds=new{x=r.Left,y=r.Top,width=r.Width,height=r.Height},overlappingWindowsAbove=covering,occlusionAssessment="bounding-rectangle overlap; transparent/shaped windows may differ"};
     }
 }
 internal sealed class Observation {
@@ -63,9 +64,10 @@ internal sealed class Observation {
     internal List<ObservedWindow> Windows;
     internal ObservedWindow Target;
     internal long FrameTimestamp;
+    internal string ImageHash;
 }
 internal sealed class CaptureImage {
-    public string mimeType,data,captureMethod;
+    public string mimeType,data,captureMethod,contentHash;
     public int x,y,width,height,sourceWidth,sourceHeight;
     public double scaleX,scaleY;
     public long frameTimestamp100ns;
@@ -145,9 +147,11 @@ internal sealed class Engine {
     private readonly object sync=new object();
     private readonly object operation=new object();
     private Observation observation;
-    private readonly Dictionary<IntPtr,Tuple<uint,long>> actionFrames=new Dictionary<IntPtr,Tuple<uint,long>>();
+    private readonly Dictionary<IntPtr,Tuple<uint,long,string>> actionFrames=new Dictionary<IntPtr,Tuple<uint,long,string>>();
+    private readonly Dictionary<IntPtr,Tuple<uint,string>> captureHashes=new Dictionary<IntPtr,Tuple<uint,string>>();
     private Task<object> windowCapture;
     internal volatile bool Armed,Stopped,PointerVisible=true;
+    internal volatile bool InputMonitoringReady;
     internal volatile bool MessageButtonHeld;
     internal volatile string Mode="background";
     internal volatile string Message="已暂停。点击允许全桌面操作即可启用。";
@@ -158,7 +162,13 @@ internal sealed class Engine {
     internal IntPtr OverlayWindow;
     internal IntPtr FixtureWindow;
     internal bool ShowPointer {get{return Armed&&PointerVisible&&!Stopped;}}
-    internal void Pause(string reason){Armed=false;Interlocked.Increment(ref cancelGeneration);Message=reason;if(windowCapture!=null)WindowCapture.Reset();}
+    internal void Enable(){
+        if(Stopped||!InputMonitoringReady)throw new Fault("input_monitor_unavailable","输入监测尚未就绪，不能启用操作。");
+        if(WindowCapture.HelperActive)throw new Fault("capture_busy","截图进程仍在运行，不能重新启用输入。");
+        if(Touch.Active||MessageButtonHeld)throw new Fault("contact_unreleased","仍有未确认释放的按键或触点，禁止重新启用。");
+        Armed=true;Message="操作已按本次明确授权启用；检测到新的用户输入时会等待。";
+    }
+    internal void Pause(string reason){Armed=false;Interlocked.Increment(ref cancelGeneration);Message=reason;if(windowCapture!=null)try{WindowCapture.Reset();}catch(Fault error){Message=reason+" "+error.Message;}}
     internal static List<WindowItem> Windows(IntPtr exclude){
         var items=new List<WindowItem>();
         Native.EnumWindows(delegate(IntPtr w,IntPtr unused){
@@ -174,7 +184,7 @@ internal sealed class Engine {
     internal object Status(){
         Native.Point real;bool available=Native.GetCursorPos(out real);Native.Rect bounds;object shown=null;
         if(OverlayWindow!=IntPtr.Zero&&Native.GetWindowRect(OverlayWindow,out bounds))shown=new{x=bounds.Left,y=bounds.Top,width=bounds.Width,height=bounds.Height};
-        return new{controllerVersion="0.7.0-beta.4",backgroundWindowCapture=true,windowIdentityGuard=true,targetQuarantine=true,postActionFrameGuard=true,windowMessageGestures=true,foregroundWindowId=Native.GetForegroundWindow().ToInt64().ToString(),windowZOrder=CaptureWindows().ConvertAll<string>(w=>w.Handle.ToInt64().ToString()),humanInputSequence=Human.Sequence,backgroundButtonHeld=MessageButtonHeld,armed=Armed,mode=Mode,scope="desktop",pointer=new{x=X,y=Y,visible=ShowPointer},
+        return new{controllerVersion="0.7.0-beta.4",backgroundWindowCapture=true,isolatedWindowCapture=true,windowIdentityGuard=true,targetQuarantine=true,postActionFrameGuard=true,windowMessageGestures=true,foregroundWindowId=Native.GetForegroundWindow().ToInt64().ToString(),windowZOrder=CaptureWindows().ConvertAll<string>(w=>w.Handle.ToInt64().ToString()),humanInputSequence=Human.Sequence,backgroundButtonHeld=MessageButtonHeld,armed=Armed,mode=Mode,scope="desktop",pointer=new{x=X,y=Y,visible=ShowPointer},
         systemPointer=new{x=real.X,y=real.Y,available=available},overlayBounds=shown,message=Message,pauseShortcut=PauseShortcut,
         limitations=new[]{"后台消息点击和拖动的兼容性取决于目标程序；触摸可能影响真实指针和焦点。","不支持独立键盘、跨窗口系统拖放和独立悬停；后台滚轮需改用滚动条点击。","当前同一时刻仅支持一个 Agent 控制会话。","没有 SendInput 或真实鼠标瞬移兜底。"}};}
     internal object Dispatch(Dictionary<string,object> request){
@@ -183,6 +193,7 @@ internal sealed class Engine {
         case "status":return Status();
         case "list_windows":var ws=Windows(Owner);return ws.ConvertAll<object>(w=>w.Export());
         case "pause":Pause("Agent 已请求暂停。");return Status();
+        case "enable":if(Mode!="background")throw new Fault("unsupported","MCP 启用仅支持后台消息模式，不会自动启用实验性触摸。");Enable();return Status();
         case "release_capture":if(windowCapture!=null)WindowCapture.Reset();return Status();
         case "observe":lock(operation){return Observe(Json.Flag(request,"screenshot",true),Json.Text(request,"windowId",""),Json.Text(request,"capture","desktop"));}
         case "move":{
@@ -234,7 +245,7 @@ internal sealed class Engine {
         if(screenshot&&target!=null){
             if(windowCapture!=null&&!windowCapture.IsCompleted)throw new Fault("capture_busy","上次后台画面采集尚未结束，请稍后再观察。");
             windowCapture=Task.Run(()=>WindowCapture.Capture(target.Handle,target.Bounds));
-            try{if(!windowCapture.Wait(3000))throw new Fault("capture_timeout","后台画面采集超时；没有激活目标窗口。");picture=windowCapture.Result;}
+            try{if(!windowCapture.Wait(6000)){WindowCapture.Reset();throw new Fault("capture_timeout","后台画面采集超时，已停止截图进程；没有激活目标窗口。");}picture=windowCapture.Result;}
             catch(AggregateException error){throw error.GetBaseException();}
         }else if(screenshot){
             double scale=Math.Min(1,Math.Sqrt(4000000.0/((long)region.Width*region.Height)));
@@ -255,7 +266,11 @@ internal sealed class Engine {
         }
         if(target!=null)ValidateTarget(target);
         var captured=picture as CaptureImage;
-        var o=new Observation{Token=Guid.NewGuid().ToString("N"),Bounds=desktop,At=InputTracker.Now,Windows=CaptureWindows(),Target=target,FrameTimestamp=captured==null?0:captured.frameTimestamp100ns};
+        if(captured!=null&&target!=null){
+            Tuple<uint,string> previous;captured.frameChanged=!captureHashes.TryGetValue(target.Handle,out previous)||previous.Item1!=target.Pid||previous.Item2!=captured.contentHash;
+            if(captureHashes.Count>=64)captureHashes.Clear();captureHashes[target.Handle]=Tuple.Create(target.Pid,captured.contentHash);
+        }
+        var o=new Observation{Token=Guid.NewGuid().ToString("N"),Bounds=desktop,At=InputTracker.Now,Windows=CaptureWindows(),Target=target,FrameTimestamp=captured==null?0:captured.frameTimestamp100ns,ImageHash=captured==null?null:captured.contentHash};
         if(target!=null&&(Native.GetForegroundWindow()!=captureForeground||(coveredBefore&&Above(target.Handle,captureForeground)))){
             Pause("后台画面采集期间前台窗口或层级发生变化，已暂停。");throw new Fault("capture_interference","采集期间焦点或层级发生变化，没有把本次画面当成无干扰操作。");
         }
@@ -271,10 +286,10 @@ internal sealed class Engine {
         return o;
     }
     private bool FreshAfterAction(Observation o){
-        Tuple<uint,long> previous;
-        return o.Target==null||!actionFrames.TryGetValue(o.Target.Handle,out previous)||FrameAdvanced(o.Target.Pid,o.FrameTimestamp,previous);
+        Tuple<uint,long,string> previous;
+        return o.Target==null||!actionFrames.TryGetValue(o.Target.Handle,out previous)||FrameAdvanced(o.Target.Pid,o.FrameTimestamp,o.ImageHash,previous);
     }
-    internal static bool FrameAdvanced(uint pid,long timestamp,Tuple<uint,long> previous){return previous.Item1!=pid||timestamp>previous.Item2;}
+    internal static bool FrameAdvanced(uint pid,long timestamp,string hash,Tuple<uint,long,string> previous){return previous.Item1!=pid||(timestamp>previous.Item2&&!string.IsNullOrEmpty(hash)&&hash!=previous.Item3);}
     private static Native.Point ReadPoint(Dictionary<string,object> a,string x,string y){
         var p=new Native.Point(Json.Number(a,x,-100000,100000),Json.Number(a,y,-100000,100000));
         bool inside=false;foreach(Screen s in Screen.AllScreens)if(s.Bounds.Contains(p.X,p.Y)){inside=true;break;}
@@ -423,7 +438,7 @@ internal sealed class Engine {
         IntPtr receiver=IntPtr.Zero;Native.Point receiverPoint=new Native.Point();
         X=from.X;Y=from.Y;
         try{
-            if(o.Target!=null){if(actionFrames.Count>=64)actionFrames.Clear();actionFrames[target.Handle]=Tuple.Create(target.Pid,o.FrameTimestamp);}
+            if(o.Target!=null){if(actionFrames.Count>=64)actionFrames.Clear();actionFrames[target.Handle]=Tuple.Create(target.Pid,o.FrameTimestamp,o.ImageHash);}
             Message=mode=="touch"?"正在执行触摸操作…":"正在执行后台点击…";
             if(mode=="background"){
                 IntPtr child=ChildAt(target.Handle,from);var p=ClientPoint(child,from);

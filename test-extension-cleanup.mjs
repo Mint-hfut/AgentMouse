@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+const source=(await readFile(new URL('./browser-extension/background.js',import.meta.url),'utf8')).replace("import { BASE_URL, TOKEN } from './config.js';","const BASE_URL='',TOKEN='';").replace(/run\(\)\.catch\(error => \{ lastError = error.message; \}\);\s*$/,'');
+let fail=true;
+const chrome={debugger:{sendCommand:async()=>{if(fail)throw new Error('release failed');},detach:async()=>{if(fail)throw new Error('detach failed');},onDetach:{addListener(){}},onEvent:{addListener(){}}},runtime:{onMessage:{addListener(){}}}};
+const test=new Function('chrome','setInterval',source+'\nreturn {releaseAll,held,attached};')(chrome,()=>{});
+test.attached.add(7);test.held.set(7,{x:1,y:1,button:'left'});
+await assert.rejects(test.releaseAll(),/unconfirmed/);assert.equal(test.held.size,1);assert.equal(test.attached.size,1);
+fail=false;await test.releaseAll();assert.equal(test.held.size,0);assert.equal(test.attached.size,0);
+console.log('PASS actual extension cleanup logic: failed release/detach retains state and reports failure; confirmed cleanup clears it');

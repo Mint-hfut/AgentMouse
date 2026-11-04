@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { PassThrough } from 'node:stream';
-import { mkdtemp, cp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, cp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -30,9 +30,9 @@ assert.equal(dsh[0].insert[1].config.includeDefaultRoots,false);
 assert.match(hostConfig('codex',folder),/^\[mcp_servers\.agentmouse\]/);
 assert.throws(()=>hostConfig('unknown'));
 
-async function lifecycle(action,lateOpen=false,capture=false){
+async function lifecycle(action,lateOpen=false,capture=false,enable=false){
   const input=new PassThrough(),output=new PassThrough(),errors=new PassThrough(),calls=[];
-  const server=serve({input,output,errorOutput:errors,call:async request=>{calls.push(request.method);return {ok:true,result:request.method==='status'?{windowIdentityGuard:true,targetQuarantine:true,postActionFrameGuard:true,backgroundWindowCapture:true}:request.capture==='window'?{scope:'window',screenshot:{data:'iVBORw==',mimeType:'image/png',captureMethod:'Windows.Graphics.Capture'}}:{}};}});
+  const server=serve({input,output,errorOutput:errors,call:async request=>{calls.push(request.method);return {ok:true,result:request.method==='status'?{isolatedWindowCapture:true,windowIdentityGuard:true,targetQuarantine:true,postActionFrameGuard:true,backgroundWindowCapture:true}:request.capture==='window'?{scope:'window',screenshot:{data:'iVBORw==',mimeType:'image/png',captureMethod:'Windows.Graphics.Capture'}}:{}};}});
   let id=0,buffer='';const waiting=new Map();
   output.on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf('\n'))>=0){const value=JSON.parse(buffer.slice(0,end));buffer=buffer.slice(end+1);waiting.get(value.id)?.(value);waiting.delete(value.id);}});
   function send(method,params){const current=++id;return new Promise(resolve=>{waiting.set(current,resolve);input.write(JSON.stringify({jsonrpc:'2.0',id:current,method,params})+'\n');});}
@@ -41,17 +41,36 @@ async function lifecycle(action,lateOpen=false,capture=false){
   if(lateOpen){await server.release();const result=await send('tools/call',{name:'pointer_open',arguments:{}});assert.equal(result.result.isError,true);}
   if(action)await send('tools/call',{name:'pointer_move',arguments:{x:10,y:20}});
   if(capture)await send('tools/call',{name:'pointer_observe',arguments:{capture:'window',windowId:'1234'}});
+  if(enable)await send('tools/call',{name:'pointer_open',arguments:{allowInput:true}});
   input.end();await server.finished;
-  assert.deepEqual(calls,action?['move','pause']:capture?['status','observe','release_capture']:[]);
+  assert.deepEqual(calls,action?['move','pause']:capture?['status','observe','release_capture']:enable?['open','pause']:[]);
 }
 await lifecycle(false);
 await lifecycle(true);
 await lifecycle(false,true);
 await lifecycle(false,false,true);
+await lifecycle(false,false,false,true);
+{
+  const input=new PassThrough(),output=new PassThrough(),calls=[];let releaseOpen,started;
+  const entered=new Promise(done=>{started=done;});const held=new Promise(done=>{releaseOpen=done;});
+  const server=serve({input,output,call:async request=>{calls.push(request.method);if(request.method==='open'){started();await held;}return {ok:true,result:{}};}});
+  input.write(JSON.stringify({jsonrpc:'2.0',id:1,method:'initialize',params:{protocolVersion:'2025-06-18'}})+'\n');
+  input.write(JSON.stringify({jsonrpc:'2.0',id:2,method:'tools/call',params:{name:'pointer_open',arguments:{allowInput:true}}})+'\n');
+  await entered;await server.release();releaseOpen();input.end();await server.finished;assert.deepEqual(calls,['open','pause','pause']);
+}
 
 // Verify the distributed CLI/server resolve their own root after relocation, including spaces and Unicode.
 const temp=await mkdtemp(join(tmpdir(),'computer-use plugin '));
 try{
+  const workerSource=await readFile(new URL('./fusion-worker.mjs',import.meta.url),'utf8');await writeFile(join(temp,'fusion-worker.mjs'),workerSource);
+  await writeFile(join(temp,'browser-router.mjs'),'export const browserRouter=call=>call;\n');
+  await writeFile(join(temp,'mcp-server.mjs'),"import {appendFile} from 'node:fs/promises';export async function callApp(request){await appendFile(new URL('./calls.jsonl',import.meta.url),request.method+'\\n');if(request.method==='open'){process.stderr.write('entered-open\\n');await new Promise(done=>setTimeout(done,150));}return {ok:true,result:{}};}\n");
+  await new Promise((done,fail)=>{
+    const child=spawn(process.execPath,[join(temp,'fusion-worker.mjs')],{windowsHide:true,stdio:['pipe','pipe','pipe']});const timer=setTimeout(()=>{child.kill();fail(new Error('Fusion EOF fixture timed out'));},5000);
+    child.stderr.once('data',()=>child.stdin.end());child.stdout.resume();child.once('error',fail);child.once('exit',code=>{clearTimeout(timer);code===0?done():fail(new Error('Fusion EOF fixture failed'));});
+    child.stdin.write(JSON.stringify({id:1,method:'open',allowInput:true})+'\n');
+  });
+  assert.deepEqual((await readFile(join(temp,'calls.jsonl'),'utf8')).trim().split('\n'),['open','pause','pause']);
   const destination=join(temp,'共享插件');
   for(const file of ['mcp-server.mjs','agentmouse.mjs'])await cp(resolve(file),join(destination,file),{recursive:true});
   const run=await new Promise((resolve,reject)=>{

@@ -1,6 +1,6 @@
 # Modules and editions
 
-> 当前有未解决的微信卡死事件。请保持已安装插件禁用，不对真实微信重试。防护补丁默认关闭 UIA，移除任意 PowerShell，并将 Full 调整为 26 个工具；这是临时隔离，尚未证明根因修复。详见 [事件记录](incidents/2026-11-04-wechat-hang.md)。
+> 微信兼容性仍不合格：明确授权的修复版实测中，微信点击主动置前，邮箱任务未完成。常规隔离仍保留；截图已隔离为单次进程、UIA 默认关闭、Full 为 26 工具。旧插件保持禁用。[审计与实测](audits/2026-11-04.md)。
 
 AgentMouse Core 是可独立运行、构建、安装和测试的产品。AgentMouse Full 在 Core 的稳定输入接口上加适配层，不修改 Core 的鼠标实现。
 
@@ -39,3 +39,5 @@ flowchart LR
 AgentMouse Core、后台浏览器通道、目标与观察保护、跨智能体安装器、插件与技能由本项目实现。Full 的接口融合、局部标签绑定、自带运行时与独立双包由本项目实现。Windows-MCP 提供其系统工具与 UIAutomation 树能力。上游源码按原许可证保留，并在 GitHub 语言统计中标为 vendored，不计入本项目的自有代码语言占比。
 
 完整验证说明：[compatibility.md](compatibility.md)；Full 用法：[fusion.md](fusion.md)。微信邮箱、第三方 CAPTCHA 和独立键盘仍未获得完整业务验收。
+
+原生截图由同目录 CLI 的短生命周期进程执行；PNG 返回前关闭捕获资源。父控制器只保留图像散列和观察信息，不保留 GPU 捕获帧。暂停/超时直接结束自己启动的截图进程。Core 与 Full 共用同一实现，无需额外运行时或包内可执行文件。

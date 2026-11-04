@@ -15,6 +15,9 @@ try {
   assert.equal(tools.length, 26);
   assert.ok(!tools.some(tool=>tool.name==='PowerShell'));
   assert.equal(tools.find(tool=>tool.name==='Snapshot').inputSchema.properties.use_ui_tree.default,false);
+  assert.equal(tools.find(tool=>tool.name==='pointer_open').inputSchema.properties.allow_input.default,false);
+  assert.ok(tools.find(tool=>tool.name==='App').inputSchema.properties.mode.enum.includes('show'));
+  for(const args of [{mode:'show'},{mode:'show',window_id:'browser:1'}])assert.equal((await client.callTool({name:'App',arguments:args})).isError,true);
   for (const name of ['Snapshot','Click','Move','Scroll']) assert.ok(tools.some(tool => tool.name === name));
   assert.ok(tools.find(tool => tool.name === 'Click').inputSchema.required.includes('window_id'));
   assert.ok(tools.find(tool => tool.name === 'Click').inputSchema.required.includes('observation_id'));

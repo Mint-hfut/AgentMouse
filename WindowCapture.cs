@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -55,21 +55,57 @@ internal static class WindowCapture {
         internal readonly List<IntPtr> Owned=new List<IntPtr>();
         public void Dispose(){if(Frame!=IntPtr.Zero){Close(Frame);Marshal.Release(Frame);Frame=IntPtr.Zero;}Close(CaptureSession);CaptureSession=IntPtr.Zero;Close(Pool);Pool=IntPtr.Zero;for(int i=Owned.Count-1;i>=0;i--)Marshal.Release(Owned[i]);Owned.Clear();}
     }
-    private static Session active;
-    private static readonly BlockingCollection<Action> jobs=new BlockingCollection<Action>();
-    static WindowCapture(){
+    private static readonly object helperLock=new object();
+    private static Process helper;
+    internal static bool HelperActive {get{lock(helperLock)return helper!=null&&!helper.HasExited;}}
+    internal static object Capture(IntPtr window,Native.Rect outer){
+        uint pid;Native.GetWindowThreadProcessId(window,out pid);
+        string request=Json.Write(new{windowId=window.ToInt64().ToString(),pid=pid,x=outer.Left,y=outer.Top,width=outer.Width,height=outer.Height});
+        var response=Json.Read(RunHelper("--capture-window "+"\""+request.Replace("\"","\\\"")+"\"",4500),32*1024*1024);
+        if(!Json.Flag(response,"ok",false)){
+            var error=response["error"] as Dictionary<string,object>;throw new Fault(Json.Text(error,"code","capture_unavailable"),Json.Text(error,"message","Capture helper failed."));
+        }
+        return new System.Web.Script.Serialization.JavaScriptSerializer{MaxJsonLength=32*1024*1024}.Deserialize<CaptureImage>(Json.Write(response["result"]));
+    }
+    internal static string RunHelper(string arguments,int timeout){
+        var path=Path.Combine(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location),"AgentMouse.Cli.exe");
+        var process=new Process{StartInfo=new ProcessStartInfo(path,arguments){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true,StandardOutputEncoding=new System.Text.UTF8Encoding(false)}};
+        lock(helperLock){
+            if(helper!=null&&helper.HasExited){helper.Dispose();helper=null;}
+            if(helper!=null){process.Dispose();throw new Fault("capture_busy","Previous capture helper has not exited.");}
+            try{process.Start();helper=process;}catch{process.Dispose();throw;}
+        }
+            try{
+                var output=process.StandardOutput.ReadToEndAsync();var errors=process.StandardError.ReadToEndAsync();
+                if(!process.WaitForExit(timeout))throw new Fault("capture_timeout","Window capture timed out; the isolated helper was stopped. No foreground fallback.");
+                string text=output.GetAwaiter().GetResult();errors.GetAwaiter().GetResult();
+                if(string.IsNullOrWhiteSpace(text))throw new Fault("capture_interrupted","Capture helper exited without an image; no input was sent.");
+                return text;
+            }finally{
+                // Keep a live handle for retry if termination fails; never retain a disposed Process.
+                StopHelper(process);lock(helperLock){if(ReferenceEquals(helper,process))helper=null;process.Dispose();}
+            }
+    }
+    private static void StopHelper(Process process){
+        if(process.HasExited)return;
+        try{process.Kill();}catch(System.ComponentModel.Win32Exception){if(!process.HasExited)throw new Fault("capture_cleanup_failed","The capture helper could not be stopped; input remains paused.");}
+        if(!process.WaitForExit(1000))throw new Fault("capture_cleanup_failed","The capture helper did not exit; input remains paused.");
+    }
+    internal static void Reset(){lock(helperLock){if(helper!=null)StopHelper(helper);}}
+    internal static object CaptureInProcess(Dictionary<string,object> request){
+        long id;if(!long.TryParse(Json.Text(request,"windowId",""),out id)||id<=0)throw new Fault("invalid_argument","An exact capture window is required.");
+        var window=new IntPtr(id);uint pid;Native.GetWindowThreadProcessId(window,out pid);
+        if(pid!=(uint)Json.Number(request,"pid",1,int.MaxValue)||!Native.IsWindowVisible(window)||Native.IsIconic(window))throw new Fault("window_changed","Capture target identity or visibility changed.");
+        DesktopInventory.RequireAutomationAllowed(pid);
+        Native.Rect outer;if(!Native.GetWindowRect(window,out outer)||outer.Left!=Json.Number(request,"x",-100000,100000)||outer.Top!=Json.Number(request,"y",-100000,100000)||outer.Width!=Json.Number(request,"width",1,50000)||outer.Height!=Json.Number(request,"height",1,50000))throw new Fault("window_changed","Capture target geometry changed.");
+        var done=new TaskCompletionSource<object>();
         var worker=new Thread(delegate(){
             int hr=RoInitialize(1);
-            try{foreach(var work in jobs.GetConsumingEnumerable())work();}
-            finally{if(active!=null)active.Dispose();if(hr>=0)RoUninitialize();}
-        }){IsBackground=true,Name="AgentMouse window capture"};worker.SetApartmentState(ApartmentState.MTA);worker.Start();
-    }
-    internal static object Capture(IntPtr window,Native.Rect outer){
-        var done=new TaskCompletionSource<object>();
-        jobs.Add(delegate(){try{done.SetResult(Snapshot(window,outer));}catch(Exception error){if(active!=null){active.Dispose();active=null;}done.SetException(error);}});
+            try{done.SetResult(Snapshot(window,outer));}catch(Exception error){done.SetException(error);}
+            finally{if(hr>=0)RoUninitialize();}
+        }){IsBackground=true,Name="AgentMouse isolated capture"};worker.SetApartmentState(ApartmentState.MTA);worker.Start();
         return done.Task.GetAwaiter().GetResult();
     }
-    internal static void Reset(){jobs.Add(delegate(){if(active!=null){active.Dispose();active=null;}});}
     private static Session Start(IntPtr window,Native.Rect outer){
         var state=new Session{Window=window,Bounds=outer};
         Native.GetWindowThreadProcessId(window,out state.Pid);
@@ -98,10 +134,9 @@ internal static class WindowCapture {
         }catch{state.Dispose();throw;}
     }
     private static object Snapshot(IntPtr window,Native.Rect outer){
-        uint pid;Native.GetWindowThreadProcessId(window,out pid);
-        if(active==null||active.Window!=window||active.Pid!=pid||active.Bounds.Width!=outer.Width||active.Bounds.Height!=outer.Height){
-            if(active!=null){active.Dispose();active=null;}active=Start(window,outer);
-        }
+        using(var active=Start(window,outer))return ReadFrame(active,window,outer);
+    }
+    private static object ReadFrame(Session active,IntPtr window,Native.Rect outer){
         IntPtr pool=active.Pool,device=active.Device,context=active.Context,frame=active.Frame;bool changed=false;
         var owned=new List<IntPtr>();
         Func<IntPtr,IntPtr> keep=delegate(IntPtr value){if(value==IntPtr.Zero)throw new Fault("capture_unavailable","A frame object was unavailable.");owned.Add(value);return value;};
@@ -136,7 +171,8 @@ internal static class WindowCapture {
                     double scale=Math.Min(1,Math.Sqrt(4000000.0/((long)width*height)));int w=Math.Max(1,(int)(width*scale)),h=Math.Max(1,(int)(height*scale));
                     using(var resized=new Bitmap(w,h))using(var graphics=Graphics.FromImage(resized))using(var bytes=new MemoryStream()){
                         graphics.DrawImage(bitmap,new Rectangle(0,0,w,h));resized.Save(bytes,ImageFormat.Png);
-                        return new CaptureImage{mimeType="image/png",data=Convert.ToBase64String(bytes.ToArray()),x=source.Left,y=source.Top,width=w,height=h,sourceWidth=width,sourceHeight=height,scaleX=(double)width/w,scaleY=(double)height/h,captureMethod="Windows.Graphics.Capture",frameTimestamp100ns=timestamp,frameChanged=changed};
+                        byte[] png=bytes.ToArray();string hash;using(var sha=System.Security.Cryptography.SHA256.Create())hash=BitConverter.ToString(sha.ComputeHash(png)).Replace("-","").ToLowerInvariant();
+                        return new CaptureImage{mimeType="image/png",data=Convert.ToBase64String(png),contentHash=hash,x=source.Left,y=source.Top,width=w,height=h,sourceWidth=width,sourceHeight=height,scaleX=(double)width/w,scaleY=(double)height/h,captureMethod="Windows.Graphics.Capture",frameTimestamp100ns=timestamp,frameChanged=changed};
                     }
                 }
             }finally{Method<UnmapResource>(context,15)(context,staging,0);}

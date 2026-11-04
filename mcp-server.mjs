@@ -10,7 +10,7 @@ const observation = { type: 'string', description: 'Fresh observationId returned
 const windowAddress = { type: 'string', description: 'Exact intended windowId from pointer_list_windows; must match the observed target. Never substitute the foreground app.' };
 const pathPoint = { type: 'object', properties: { x: integer, y: integer }, required: ['x', 'y'], additionalProperties: false };
 const tools = [
-  ['open', 'Open the local pointer app if needed, without requesting foreground activation. New instances start paused; an existing instance keeps its state. The user enables whole-desktop input once in its window; this tool cannot arm input.', {}, []],
+  ['open', 'Open the local controller without requesting foreground activation. Starts paused by default. Set allowInput=true only when the user explicitly authorizes AgentMouse input for the current task; this enables the controller after input monitoring is ready. Pause still stops input.', { allowInput: { type: 'boolean', default: false } }, []],
   ['status', 'Read arming state, backend and compatibility limits.', {}, []],
   ['list_windows', 'Read window inventory, including minimized/hidden app windows: HWND, PID, owner, class, physical bounds, foreground, front-to-back zOrder and overlapping windows above. A running tray app may have no listed window; check pointer_list_apps before launching anything.', {}, []],
   ['list_apps', 'Find running app processes by name/title, even when minimized, hidden or in the tray. Check before launching/relaunching. WeChat/Weixin/微信 aliases are supported. Read-only; does not start or activate apps.', { query: { type: 'string' } }, ['query']],
@@ -76,7 +76,7 @@ export function createHandler(call) {
       if (tool.name === 'pointer_observe' && args.capture === 'window') {
         const controller = await call({ method: 'status' });
         if (!controller.ok) return reply({ isError: true, content: [{ type: 'text', text: JSON.stringify(controller.error) }] });
-        if (!args.windowId?.startsWith('browser:') && (controller.result?.windowIdentityGuard !== true || controller.result?.postActionFrameGuard !== true || controller.result?.targetQuarantine !== true)) return reply({ isError: true, content: [{ type: 'text', text: JSON.stringify({ code: 'upgrade_required', message: 'Close the older AgentMouse controller and open beta.4 or newer for incident quarantine and window/frame guards.' }) }] });
+        if (!args.windowId?.startsWith('browser:') && (controller.result?.windowIdentityGuard !== true || controller.result?.postActionFrameGuard !== true || controller.result?.targetQuarantine !== true || controller.result?.isolatedWindowCapture !== true)) return reply({ isError: true, content: [{ type: 'text', text: JSON.stringify({ code: 'upgrade_required', message: 'Close the older AgentMouse controller and open the capture-isolated beta.4 build before native screenshots.' }) }] });
         if (controller.result?.backgroundWindowCapture !== true) return reply({ isError: true, content: [{ type: 'text', text: JSON.stringify({ code: 'upgrade_required', message: 'The running controller does not support real background capture. Close the old AgentMouse controller and reopen the updated version; no desktop-crop fallback was used.' }) }] });
       }
       const response = await call({ method: tool.name.slice('pointer_'.length), ...args });
@@ -100,23 +100,28 @@ export async function callApp(request, pipe) {
     if (!existsSync(join(root, 'dist/AgentMouse.Cli.exe')) || !existsSync(join(root, 'dist/AgentMouse.exe'))) (await import('./scripts/build-native.mjs')).buildNative(root, ['ignore', process.stderr, process.stderr]);
   }).catch(error => { nativeReady = null; throw error; });
   await nativeReady;
-  if (request.method === 'open') { if (pipe) throw new Error('Opening a GUI is not supported by an isolated fixture transport.'); return openApp(); }
+  if (request.method === 'open') { if (pipe) throw new Error('Opening a GUI is not supported by an isolated fixture transport.'); return openApp(request.allowInput === true); }
+  if(request.method==='observe'&&request.capture==='window'){
+    const status=await callApp({method:'status'},pipe);if(!status.ok)return status;
+    if(['windowIdentityGuard','postActionFrameGuard','targetQuarantine','isolatedWindowCapture'].some(key=>status.result?.[key]!==true))return {ok:false,error:{code:'upgrade_required',message:'Restart the current capture-isolated controller before native screenshots; no old-controller fallback.'}};
+  }
   return new Promise((resolve, reject) => {
-    execFile(join(root, 'dist', 'AgentMouse.Cli.exe'), [...(pipe ? ['--pipe', pipe] : []), ['list_windows','list_apps','inspect_window'].includes(request.method) ? '--desktop-query' : '--call', JSON.stringify(request)], { windowsHide: true, timeout: 15000, maxBuffer: 32 * 1024 * 1024 }, (error, stdout) => {
+    execFile(join(root, 'dist', 'AgentMouse.Cli.exe'), [...(pipe ? ['--pipe', pipe] : []), ['list_windows','list_apps','inspect_window','show_window'].includes(request.method) ? '--desktop-query' : '--call', JSON.stringify(request)], { windowsHide: true, timeout: 15000, maxBuffer: 32 * 1024 * 1024 }, (error, stdout) => {
       try { resolve(JSON.parse(stdout.trim())); } catch { reject(new Error(error?.message || 'Invalid app response')); }
     });
   });
 }
 
-async function openApp() {
+async function openApp(allowInput = false) {
   const existing = await callApp({ method: 'status' });
-  if (existing.ok || existing.error?.code !== 'not_running') return existing;
+  if (existing.ok) return allowInput ? callApp({ method: 'enable' }) : existing;
+  if (existing.error?.code !== 'not_running') return existing;
   await new Promise((resolve, reject) => {
     const child = spawn(join(root, 'dist', 'AgentMouse.exe'), [], { detached: true, stdio: 'ignore', windowsHide: false });
     child.once('error', reject);
     child.once('spawn', () => { child.unref(); resolve(); });
   });
-  return await callApp({ method: 'status' });
+  return await callApp({ method: allowInput ? 'enable' : 'status' });
 }
 
 export function serve({ input = process.stdin, output = process.stdout, errorOutput = process.stderr, call = callApp } = {}) {
@@ -125,8 +130,10 @@ export function serve({ input = process.stdin, output = process.stdout, errorOut
   const handle = createHandler(async request => {
     if (closed && (inputMethods.has(request.method)||request.method==='open'||(request.method==='observe'&&request.capture==='window'))) return { ok: false, error: { code: 'session_closed', message: 'MCP connection is closed.' } };
     if (inputMethods.has(request.method)) usedInput = true;
+    if (request.method === 'open' && request.allowInput === true) usedInput = true;
     if (request.method === 'observe' && request.capture === 'window') usedCapture = true;
     const response = await call(request);
+    if(closed&&request.method==='open'&&request.allowInput===true){await call({method:'pause'});return {ok:false,error:{code:'session_closed',message:'Session closed during enable; controller was paused.'}};}
     if (request.method === 'pause' && response.ok) { usedInput = false; usedCapture = false; }
     return response;
   });

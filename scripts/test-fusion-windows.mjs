@@ -46,6 +46,11 @@ try{
   if(qt){assert.equal(JSON.parse(await readFile(join(temporary,'qt-state.json'),'utf8')).businessClicks,1);assert.notEqual(clicked.receiverClass,'Static');}
   else assert.ok(updated.controls.elements.some(node=>node.name==='fusion fixture received 1'));
   assert.notEqual(updatedImage.content.find(x=>x.type==='image').data,image.content.find(x=>x.type==='image').data);
+  const same=value(await client.callTool({name:'Screenshot',arguments:{window_id:ready.windowId}}));assert.equal(same.screenshot.contentHash,updated.screenshot.contentHash);assert.equal(same.screenshot.frameChanged,false);
+  if(!qt){
+    await writeFile(join(temporary,'fusion/controls.py'),'import json\nprint(json.dumps({"elements":[{"name":"unsafe_partial","enabled":True}],"providerSucceeded":False,"error":"owned provider failure fixture"}))\n');
+    const failed=await client.callTool({name:'WaitFor',arguments:{window_id:ready.windowId,text:'unsafe_partial',timeout:30}});assert.equal(failed.isError,true);assert.match(JSON.stringify(failed.content),/accessibility_unavailable/);
+  }
   assert.equal(foreground().windowId,before.windowId);const after=foreground();assert.deepEqual(after.pointer,before.pointer);
   await client.callTool({name:'pointer_pause',arguments:{}});
   console.log(qt?'PASS Qt '+ready.qt+': real QPushButton.clicked exactly once through Full MCP, transparent/layered child skipped, new WGC PNG, wrong-target/stale rejection, foreground and physical cursor unchanged; owned fixture only, no UIA.':'PASS fusion real Windows: Windows-MCP target control labels + real WGC PNG + AgentMouse covered-window input + new control/image receipt, wrong-target and stale-token rejection, foreground and physical pointer unchanged. Own fixture only.');

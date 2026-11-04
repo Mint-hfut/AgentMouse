@@ -5,17 +5,30 @@ using System.Windows.Automation;
 
 namespace AgentPointer {
 internal static class DesktopInventory {
+    internal static object InputState(IntPtr window){
+        uint pid;uint thread=Native.GetWindowThreadProcessId(window,out pid);
+        var info=new Native.GuiThreadInfo{Size=(uint)System.Runtime.InteropServices.Marshal.SizeOf(typeof(Native.GuiThreadInfo))};
+        if(!Native.GetGUIThreadInfo(thread,ref info))return null;
+        return new{threadId=thread,captureWindowId=info.Capture.ToInt64().ToString(),activeWindowId=info.Active.ToInt64().ToString(),focusWindowId=info.Focus.ToInt64().ToString(),flags=info.Flags};
+    }
     internal static bool Quarantined(string name){
         name=name.EndsWith(".exe",StringComparison.OrdinalIgnoreCase)?name.Substring(0,name.Length-4):name;
         return name.Equals("Weixin",StringComparison.OrdinalIgnoreCase)||name.Equals("WeChat",StringComparison.OrdinalIgnoreCase)||name.Equals("WeChatAppEx",StringComparison.OrdinalIgnoreCase);
     }
-    internal static void RequireAutomationAllowed(uint pid){
-        try{using(var process=Process.GetProcessById((int)pid))if(Quarantined(process.ProcessName))throw new Fault("target_quarantined","微信自动化因卡死事件已临时隔离。禁止点击、窗口采集和控件查询；不得用脚本或物理输入绕过。");}
+    internal static bool PilotMatches(string grant,uint pid,long started){return grant==pid.ToString(System.Globalization.CultureInfo.InvariantCulture)+":"+started.ToString(System.Globalization.CultureInfo.InvariantCulture);}
+    internal static string NativePilot(uint pid){
+        string grant=Environment.GetEnvironmentVariable("AGENTMOUSE_NATIVE_PILOT");if(string.IsNullOrEmpty(grant))return null;
+        try{using(var process=Process.GetProcessById((int)pid))return PilotMatches(grant,pid,process.StartTime.ToUniversalTime().Ticks)?grant:null;}
+        catch(ArgumentException){return null;}catch(System.ComponentModel.Win32Exception){return null;}
+    }
+    internal static void RequireAutomationAllowed(uint pid,bool accessibility=false){
+        try{using(var process=Process.GetProcessById((int)pid))if(Quarantined(process.ProcessName)&&(accessibility||NativePilot(pid)==null))throw new Fault("target_quarantined","微信自动化因卡死事件已临时隔离；只有显式授权的当前进程可进行原生截图/点击试验，控件查询仍被禁止。");}
         catch(ArgumentException){throw new Fault("window_changed","Target process no longer exists.");}
     }
     internal static object Query(Dictionary<string,object> request){
         string method=Json.Text(request,"method","");
         if(method=="list_windows")return Engine.Windows(IntPtr.Zero).ConvertAll<object>(w=>w.Export());
+        if(method=="show_window")return ShowBackground(Json.Text(request,"windowId",""));
         if(method=="inspect_window")return Inspect(Json.Text(request,"windowId",""));
         if(method!="list_apps")throw new Fault("unknown_method","Unknown read-only desktop query.");
         string query=Json.Text(request,"query","").Trim();
@@ -31,6 +44,21 @@ internal static class DesktopInventory {
         }
         return new{query=query,processes=found,notFoundDoesNotProveNotInstalled=true};
     }
+    private static object ShowBackground(string windowId){
+        long id;if(!long.TryParse(windowId,out id)||id<=0)throw new Fault("invalid_argument","An exact existing windowId is required.");
+        var target=Engine.Windows(IntPtr.Zero).Find(w=>w.Handle.ToInt64()==id);
+        if(target==null)throw new Fault("window_missing","Window no longer exists; list apps again.");
+        RequireAutomationAllowed(target.Pid);
+        if(Native.GetAncestor(target.Handle,2)!=target.Handle)throw new Fault("invalid_argument","A top-level window is required.");
+        if(Native.IsIconic(target.Handle))throw new Fault("unsupported","Minimized windows cannot yet be restored without activation; no foreground fallback.");
+        int cloaked;if(Native.DwmGetWindowAttribute(target.Handle,14,out cloaked,4)==0&&cloaked!=0)throw new Fault("unsupported","Window belongs to a hidden desktop.");
+        IntPtr foreground=Native.GetForegroundWindow();
+        if(!Native.IsWindowVisible(target.Handle)&&!Native.SetWindowPos(target.Handle,new IntPtr(1),0,0,0,0,0x53))throw new Fault("window_show_failed","Could not show the existing window without activation.");
+        System.Threading.Thread.Sleep(150);
+        uint pid;Native.GetWindowThreadProcessId(target.Handle,out pid);if(pid!=target.Pid||!Native.IsWindow(target.Handle))throw new Fault("window_changed","Window identity changed while showing it.");
+        if(Native.GetForegroundWindow()!=foreground)throw new Fault("foreground_interference","Foreground changed while showing the window; inspect before continuing.");
+        return new{window=target.Export(),foregroundUnchanged=true,note="Existing window shown at the bottom without activation. Take a fresh background screenshot before input."};
+    }
     internal static bool Matches(string value,string query){
         if(value.IndexOf(query,StringComparison.OrdinalIgnoreCase)>=0)return true;
         bool wechat=query=="微信"||query.Equals("wechat",StringComparison.OrdinalIgnoreCase)||query.Equals("weixin",StringComparison.OrdinalIgnoreCase);
@@ -40,7 +68,7 @@ internal static class DesktopInventory {
         long id;if(!long.TryParse(windowId,out id)||id<=0)throw new Fault("invalid_argument","A native windowId is required.");
         var window=Engine.Windows(IntPtr.Zero).Find(w=>w.Handle.ToInt64()==id);
         if(window==null)throw new Fault("window_missing","Window no longer exists; list windows/apps again.");
-        RequireAutomationAllowed(window.Pid);
+        RequireAutomationAllowed(window.Pid,true);
         var nodes=new List<object>();bool truncated=false;var started=Stopwatch.StartNew();
         try{
             var root=AutomationElement.FromHandle(window.Handle);var queue=new Queue<Tuple<AutomationElement,int,int>>();
