@@ -19,7 +19,7 @@ for (const agent of ['codex', 'zcode']) {
   await access(join(root, 'skills/agentmouse/SKILL.md'));
   const config = JSON.parse(await readFile(join(root, agent === 'codex' ? 'mcp.json' : '.mcp.json'), 'utf8')).mcpServers.agentmouse;
   const args = config.args.map(arg => arg.replace(/\$\{(?:PLUGIN_ROOT|CLAUDE_PLUGIN_ROOT|ZCODE_PLUGIN_ROOT)\}/g, root));
-  const client = new Client({ name: 'agentmouse-host-acceptance', version: '0.6.0-beta.1' });
+  const client = new Client({ name: 'agentmouse-host-acceptance', version: '0.6.0-beta.2' });
   try {
     await client.connect(new StdioClientTransport({ command: config.command, args, cwd: root, stderr: 'pipe' }));
     const tools = (await client.listTools()).tools;

@@ -30,6 +30,8 @@ if (process.argv[2] === '--serve') {
   const output = join(root, 'compatibility-results', marker);
   const nativeMessages = process.argv.includes('--native-messages');
   const compatibilityFlags = nativeMessages && !process.argv.includes('--stock-chrome') ? ['--disable-backgrounding-occluded-windows','--disable-renderer-backgrounding','--disable-background-timer-throttling','--disable-gpu','--disable-features=CalculateNativeWinOcclusion,ApplyNativeOcclusionToCompositor'] : [];
+  // Fixture RGB receipts must not depend on the host monitor's color profile.
+  compatibilityFlags.push('--force-color-profile=srgb');
   let chrome, socket, fixture, client, extensionBridge, labServer, lastReport, testConfig, extensionFolder;
   const pending = new Map(); let sequence = 0;
   const delay = ms => new Promise(done => setTimeout(done, ms));
@@ -93,7 +95,7 @@ if (process.argv[2] === '--serve') {
       const tabs=(await bridgeRequest(testConfig,'/call',{method:'list_tabs'})).result;
       const tab=tabs.find(tab=>tab.title.startsWith('APCOMPAT-'+marker));assert.ok(tab,'The real extension did not list the fixture tab');ready.windowId='browser:'+tab.id;
     }
-    client = new Client({ name: 'agentmouse-background-chrome', version: '0.6.0-beta.1' });
+    client = new Client({ name: 'agentmouse-background-chrome', version: '0.6.0-beta.2' });
     const serverArgs = extensionTest ? [join(root,'scripts/extension-test-server.mjs'),headless?'headless':pipe] : nativeMessages ? [fileURLToPath(import.meta.url), '--serve', pipe] : [join(root, 'scripts/browser-test-server.mjs'), 'ws://127.0.0.1:' + port + endpoint, targetId, headless ? 'headless' : pipe];
     await client.connect(new StdioClientTransport({ command: process.execPath, args: serverArgs, cwd: root, env:{...process.env,...(extensionTest?{AGENTMOUSE_HOME:join(temp,'state')}:{})},stderr: 'pipe', maxBufferSize: 32 * 1024 * 1024 }));
     const text = result => { assert.ok(!result.isError, JSON.stringify(result)); return JSON.parse(result.content.find(item => item.type === 'text').text); };

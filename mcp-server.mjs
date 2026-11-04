@@ -45,7 +45,7 @@ export function createHandler(call) {
       const requested = request.params?.protocolVersion;
       if (typeof requested !== 'string') return error(-32602, 'Missing protocolVersion');
       initialized = true;
-      return reply({ protocolVersion: versions.includes(requested) ? requested : '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'agentmouse', version: '0.6.0-beta.1' } });
+      return reply({ protocolVersion: versions.includes(requested) ? requested : '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'agentmouse', version: '0.6.0-beta.2' } });
     }
     if (!initialized) return error(-32000, 'Initialize first');
     if (request.method === 'ping') return reply({});

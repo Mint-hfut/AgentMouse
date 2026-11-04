@@ -1,7 +1,7 @@
 import { BASE_URL, TOKEN } from './config.js';
 
 const attached = new Set(), held = new Map();
-const allowed = new Set(['Page.getLayoutMetrics', 'Page.captureScreenshot', 'Input.dispatchMouseEvent', 'Input.setInterceptDrags', 'Input.dispatchDragEvent', 'Input.cancelDragging']);
+const allowed = new Set(['Emulation.setFocusEmulationEnabled', 'Page.getLayoutMetrics', 'Page.captureScreenshot', 'Input.dispatchMouseEvent', 'Input.setInterceptDrags', 'Input.dispatchDragEvent', 'Input.cancelDragging']);
 let connected = false, lastError = '', stopped = false, clientId;
 const delay = ms => new Promise(done => setTimeout(done, ms));
 async function http(path, body) {

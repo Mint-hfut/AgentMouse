@@ -8,7 +8,7 @@
 
 网页任务使用 **Browser Bridge**：取得真实标签页画面，按图像坐标发送鼠标按下、移动、释放；沿用当前 Chrome 和登录状态，不依赖网页 DOM 选择器、脚本点击或逐网站接口。桌面软件另有通用 Windows 采集和窗口消息通道。
 
-**当前为测试版。** 真实 Chrome 扩展链路已通过无界面组件测试；交互桌面后来不可用，保持用户窗口在前的最终桌面验收仍待补做。不能把它宣传成“所有软件、所有验证码都保证通过”。
+**当前为测试版。** 已完成真实桌面验收：Chrome 全程被前台 ZCode 窗口遮挡，10 项本地操作及画面更新检查全部通过，包括滑块、拼图式拖动、顺序点选与中断释放；未检测到抢前台、窗口越过前台或无人工输入时真实鼠标移动。[桌面测试记录](docs/test-results/desktop-2026-11-04.json)。不能把它宣传成“所有软件、所有验证码都保证通过”。
 
 ## 一键安装到智能体
 
@@ -94,7 +94,7 @@ Chrome 在部分鼠标按下处理中会主动置前并激活窗口；仅仅不�
 
 ## 配置、备份与卸载
 
-运行目录默认 `%LOCALAPPDATA%\AgentMouse\0.6.0-beta.1`，会解析 Windows 打包应用重定向后的物理路径。浏览器配对目录 `~/.agentmouse/browser` 使用每用户密钥和仅监听本机的认证服务，密钥及私人浏览器资料不进仓库。
+运行目录默认 `%LOCALAPPDATA%\AgentMouse\0.6.0-beta.2`，会解析 Windows 打包应用重定向后的物理路径。浏览器配对目录 `~/.agentmouse/browser` 使用每用户密钥和仅监听本机的认证服务，密钥及私人浏览器资料不进仓库。
 
 安装保留其他配置并备份到运行目录 `backups/`。MCP 模式配置：Claude `~/.claude.json`、Codex `~/.codex/config.toml`、ZCode `~/.zcode/cli/config.json`、WorkBuddy `~/.workbuddy/mcp.json`、DSH `~/.dsh/profiles/<profile>/cordis.patch.yml`。原生升级只迁移 AgentMouse 自己的市场来源；原生命令失败明确报告可能完成的部分，仅 MCP 设置写入支持回滚。
 

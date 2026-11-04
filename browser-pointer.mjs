@@ -26,6 +26,8 @@ export class BrowserPointer {
   }
   async observe(windowId, attempt = 0) {
     this.observation = null;
+    // Keep occluded tabs rendering without activating their Windows window; detach clears this override.
+    await this.send('Emulation.setFocusEmulationEnabled', { enabled: true });
     let viewport = await this.viewport();
     for (let i = 0; i < 5; i++) { await delay(100); const next = await this.viewport(); if (sameViewport(viewport, next)) { viewport = next; break; } viewport = next; }
     const clip = { x: viewport.pageX || 0, y: viewport.pageY || 0, width: viewport.clientWidth, height: viewport.clientHeight, scale: 1 };
@@ -113,10 +115,14 @@ export class BrowserPointer {
         this.held = { ...from, button, clickCount: click };
         try {
           await this.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...from, button, buttons: pressed, clickCount: click, modifiers: 0 });
-          const span = drag ? duration : hold, started = this.now();
+          const span = drag ? duration : hold, started = this.now(); let previousDistance = 0;
           while (span > 0) {
             await this.gate(generation, foreground);
-            const fraction = Math.min(1, (this.now() - started) / span), distance = fraction * cumulative.at(-1);
+            const total = cumulative.at(-1);
+            // Slow permission checks must not skip path corners or collapse a drag into a jump.
+            const distance = drag && total ? Math.min(total * (this.now() - started) / span, previousDistance + total / 20, cumulative.find(value => value > previousDistance) ?? total) : total;
+            const fraction = drag && total ? distance / total : Math.min(1, (this.now() - started) / span);
+            previousDistance = distance;
             let segment = 1; while (segment < cumulative.length - 1 && cumulative[segment] < distance) segment++;
             const length = cumulative[segment] - cumulative[segment - 1], t = length ? (distance - cumulative[segment - 1]) / length : 1;
             if (drag) {

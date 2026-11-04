@@ -26,7 +26,12 @@ export function bridgeRequest(config, path, body) {
 }
 let starting;
 export async function ensureBridge(config) {
-  try { await bridgeRequest(config, '/health'); return; } catch {}
+  let health;
+  try { health = await bridgeRequest(config, '/health'); } catch {}
+  if (health) {
+    if (config.version && health.version !== config.version) throw Object.assign(new Error('An older AgentMouse browser service is still running. Restart Windows, then reload the generated extension after upgrading.'), { code: 'upgrade_required' });
+    return;
+  }
   if (!starting) starting = (async () => {
     const log = await open(join(config.directory, 'bridge.log'), 'a', 0o600);
     try {

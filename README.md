@@ -8,7 +8,7 @@ Keep working while your agent observes and operates another app. AgentMouse comb
 
 For web tasks, **Browser Bridge** reads real tab images and sends coordinate-based mouse input through Chrome's debugger API. It uses your existing browser/profile and does not rely on DOM selectors, injected clicks or per-site scripts. Native Windows capture/messages remain available for desktop apps.
 
-**Beta:** real browser-extension gesture integration passes in headless Chrome for Testing. Final acceptance with a foreground user window is still pending because the interactive desktop became unavailable. This is not a universal app-compatibility or CAPTCHA-solving guarantee.
+**Beta:** all ten local browser workflow checks pass with Chrome fully covered by the foreground ZCode window, including fresh background images, slider/puzzle gestures, ordered clicks and cancellation. The test detected no foreground, z-order or unattributed system-pointer interference. This is not a universal app-compatibility or CAPTCHA-solving guarantee. [Desktop evidence](docs/test-results/desktop-2026-11-04.json).
 
 ## Install
 
@@ -90,7 +90,7 @@ Desktop non-interference, actual-client native loading and component tests are s
 
 ## Configuration and removal
 
-Runtime: `%LOCALAPPDATA%\AgentMouse\0.6.0-beta.1` (physical path resolved for packaged Windows hosts). Browser pairing: `~/.agentmouse/browser`, with a per-user local token and authenticated loopback-only service. Generated secrets/private profiles stay outside the repo. Existing settings are retained with backups under the runtime's `backups/`.
+Runtime: `%LOCALAPPDATA%\AgentMouse\0.6.0-beta.2` (physical path resolved for packaged Windows hosts). Browser pairing: `~/.agentmouse/browser`, with a per-user local token and authenticated loopback-only service. Generated secrets/private profiles stay outside the repo. Existing settings are retained with backups under the runtime's `backups/`.
 
 MCP-only paths: Claude `~/.claude.json`, Codex `~/.codex/config.toml`, ZCode `~/.zcode/cli/config.json`, WorkBuddy `~/.workbuddy/mcp.json`, DSH `~/.dsh/profiles/<profile>/cordis.patch.yml`. Codex native upgrades relocate only AgentMouse's own marketplace when the versioned source changes. Native installer failures report possible partial completion; MCP-only settings writes support rollback.
 

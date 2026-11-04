@@ -5,7 +5,7 @@ import { join, resolve, dirname, basename } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { setupBrowserBridge } from './scripts/browser-setup.mjs';
 import { createBrowserBridge } from './bridge-server.mjs';
-import { bridgeRequest } from './bridge-client.mjs';
+import { bridgeRequest, ensureBridge } from './bridge-client.mjs';
 
 const temp = await mkdtemp(join(tmpdir(), 'agentmouse-pairing-')); let bridge, polling, closing = false;
 try {
@@ -21,6 +21,7 @@ try {
   bridge = createBrowserBridge({ token: config.token, extensionId: installed.extensionId, checkPermission: async () => ({ armed: true, foregroundWindowId: 'code' }) });
   await new Promise(done => bridge.server.listen(0, '127.0.0.1', done));config.port = bridge.server.address().port;
   const base = 'http://127.0.0.1:' + config.port;
+  await assert.rejects(ensureBridge({ ...config, version: 'old-service-mismatch-test' }), { code: 'upgrade_required' });
   assert.equal((await fetch(base + '/health')).status, 403);
   assert.equal((await fetch(base + '/health', { headers: { Authorization: 'Bearer ' + config.token, Origin: 'https://untrusted.example' } })).status, 403);
   assert.equal((await fetch(base + '/health', { headers: { Authorization: 'Bearer ' + 'ü'.repeat(64) } })).status, 403);

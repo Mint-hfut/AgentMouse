@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { BrowserPointer } from './browser-pointer.mjs';
 
-const allowed = new Set(['Page.getLayoutMetrics', 'Page.captureScreenshot', 'Input.dispatchMouseEvent', 'Input.setInterceptDrags', 'Input.dispatchDragEvent', 'Input.cancelDragging']);
+const allowed = new Set(['Emulation.setFocusEmulationEnabled', 'Page.getLayoutMetrics', 'Page.captureScreenshot', 'Input.dispatchMouseEvent', 'Input.setInterceptDrags', 'Input.dispatchDragEvent', 'Input.cancelDragging']);
 const failure = (code, message) => Object.assign(new Error(message), { code });
 export function createBrowserBridge({ token, extensionId, checkPermission, pauseController = async () => {}, version = '0.6.0' }) {
   if (!/^[a-f0-9]{64}$/.test(token) || !/^[a-p]{32}$/.test(extensionId)) throw new Error('Invalid bridge pairing configuration.');
@@ -12,7 +12,7 @@ export function createBrowserBridge({ token, extensionId, checkPermission, pause
   function command(op, details = {}) {
     if (!connected()) return Promise.reject(failure('browser_not_connected', 'Load the paired AgentMouse browser extension first.'));
     return new Promise((done, fail) => {
-      const id = randomUUID(), timer = setTimeout(() => { pending.delete(id); const index = queue.findIndex(item => item.id === id); if (index >= 0) queue.splice(index, 1); fail(failure('browser_timeout', 'The browser bridge did not respond.')); }, 15000);
+      const id = randomUUID(), timer = setTimeout(() => { pending.delete(id); const index = queue.findIndex(item => item.id === id); if (index >= 0) queue.splice(index, 1); fail(failure('browser_timeout', 'The browser bridge did not respond: ' + (details.method || op))); }, 15000);
       pending.set(id, value => { clearTimeout(timer); value.error ? fail(failure('browser_error', value.error)) : done(value.result); });
       const item = { id, op, ...details };
       if (waiter) { const send = waiter; waiter = null; send(item); } else queue.push(item);

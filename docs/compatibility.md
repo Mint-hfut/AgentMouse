@@ -10,9 +10,11 @@ AgentMouse has two input routes. Native Windows capture/messages provide desktop
 | Declared MCP connectivity | Official SDK reads cached plugin manifests, lists nine tools, calls real native status | Separate from an actual model choosing a tool |
 | Windows background capture | Real Chrome HWND pixels captured using Windows.Graphics.Capture while covered | Apps can stop repainting; no desktop-crop fallback |
 | Native inactive Chrome input | Further testing reproduced activation/raising by Chrome | Now blocked; use Browser Bridge |
-| Real browser extension | Chrome for Testing 157.0.8103.38, actual unpacked extension → authenticated bridge → MCP | Headless component acceptance, not desktop non-interference |
-| Foreground user window remains in front during full browser workflow | Pending: interactive desktop later returned foreground HWND 0 and unavailable pointer data | No full desktop pass claimed |
+| Real browser extension | Chrome for Testing 157.0.8103.38, actual unpacked extension → authenticated bridge → MCP | Passed headless components and the separate covered-window desktop workflow |
+| Foreground user window remains in front during full browser workflow | 2026-11-04: all ten checks passed with Chrome fully covered by ZCode; no focus, relative z-order or unattributed cursor movement detected | One Windows environment and local fixture; [machine-readable result](test-results/desktop-2026-11-04.json) |
 | Third-party CAPTCHA acceptance | Not tested | Local widget tests do not prove server risk checks accept automation |
+
+Both locally installed Codex/ZCode plugins were upgraded to beta.2 and passed cached-manifest/MCP status checks. ZCode's first upgrade failed with `EPERM` while renaming its staged cache; rerunning the installer completed its managed reinstall without errors. This intermittent native-client installation failure is not counted as a successful first attempt. Packaged native installation and repeat-install checks also passed in separate temporary homes.
 
 ## Real extension/component checks
 
@@ -31,7 +33,11 @@ Passed component cases:
 - HTML5 drag/drop with intercepted drag data, keeping it out of the OS drag loop.
 - Mid-drag pause followed by page pointer-up and confirmed released state.
 
-Assertions check the fixture state **and expected pixels in a newly captured image**. Screenshot sampling time is not a native DWM frame timestamp. The demo [browser-verification.png](images/browser-verification.png) is an unmodified capture of the account-free fixture, from the headless extension test.
+Assertions check the fixture state **and expected pixels in a newly captured image**. Screenshot sampling time is not a native DWM frame timestamp. The demo [browser-verification.png](images/browser-verification.png) is an unmodified capture of the account-free fixture, from the covered-window desktop test.
+
+The first restored-desktop attempt timed out at `Page.captureScreenshot` while the page was occluded. Browser observations now enable `Emulation.setFocusEmulationEnabled`, keeping the page rendering without activating its Windows window. Detaching the debugger clears that override; the page can receive simulated focus/visibility events while attached. The passing desktop test retained GPU acceleration and normal occlusion settings. Its sole launch adjustment was `--force-color-profile=srgb`, to make fixture RGB receipts independent of the monitor profile; production does not require this flag. See [Chromium's implementation](https://raw.githubusercontent.com/chromium/chromium/main/content/browser/devtools/protocol/emulation_handler.cc).
+
+The desktop run also exposed sparse drag samples caused by slower native permission checks. Drag interpolation now preserves each explicit corner and at least twenty movement samples, even when delivery is slow. Requested duration is a minimum schedule, not a wall-clock upper bound. A regression check simulates slow permission checks and verifies corner delivery.
 
 These checks validate mouse execution primitives. They do not solve CAPTCHA images, defeat bot detection, validate a third-party account flow or guarantee every real site accepts the gesture. Site verification may require a person.
 
@@ -78,6 +84,6 @@ node scripts/test-background-chrome.mjs --headless-test --extension-bridge-test
 
 Chrome for Testing is used because normal branded Chrome removed the command-line extension loader. This is Google's supported development/test distribution, not an attempt to bypass an administrator block. Production users load the generated extension themselves. [Official notice](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/1-g8EFx2BBY/m/my-groups).
 
-Once the interactive desktop is restored, omit `--headless-test` to check the fixture fully behind an existing foreground window. The harness lowers only its owned fixture, checks foreground/z-order, and aborts on interference. `--native-messages` is a diagnostic for the rejected native Chrome route and is expected to fail, not an acceptance pass.
+Omit `--headless-test` to reproduce the covered-window desktop acceptance with an existing foreground window. The harness lowers only its owned fixture, checks foreground/z-order, and aborts on interference. `--native-messages` is a diagnostic for the rejected native Chrome route and is expected to fail, not an acceptance pass.
 
 Build/check ZIPs with `scripts/build-release.ps1` and `scripts/test-release.ps1`; `-NativeClients` additionally checks native Codex/ZCode installation in isolated homes. Raw reports, browser profiles and personal captures are excluded from Git. Historical 0.3/0.4 checks of selected Chrome/Edge/Notepad/Word actions are not treated as current universal guarantees; audio playback was never verified.

@@ -150,7 +150,7 @@ internal sealed class Engine {
     internal object Status(){
         Native.Point real;bool available=Native.GetCursorPos(out real);Native.Rect bounds;object shown=null;
         if(OverlayWindow!=IntPtr.Zero&&Native.GetWindowRect(OverlayWindow,out bounds))shown=new{x=bounds.Left,y=bounds.Top,width=bounds.Width,height=bounds.Height};
-        return new{controllerVersion="0.6.0-beta.1",backgroundWindowCapture=true,windowMessageGestures=true,foregroundWindowId=Native.GetForegroundWindow().ToInt64().ToString(),windowZOrder=CaptureWindows().ConvertAll<string>(w=>w.Handle.ToInt64().ToString()),humanInputSequence=Human.Sequence,backgroundButtonHeld=MessageButtonHeld,armed=Armed,mode=Mode,scope="desktop",pointer=new{x=X,y=Y,visible=ShowPointer},
+        return new{controllerVersion="0.6.0-beta.2",backgroundWindowCapture=true,windowMessageGestures=true,foregroundWindowId=Native.GetForegroundWindow().ToInt64().ToString(),windowZOrder=CaptureWindows().ConvertAll<string>(w=>w.Handle.ToInt64().ToString()),humanInputSequence=Human.Sequence,backgroundButtonHeld=MessageButtonHeld,armed=Armed,mode=Mode,scope="desktop",pointer=new{x=X,y=Y,visible=ShowPointer},
         systemPointer=new{x=real.X,y=real.Y,available=available},overlayBounds=shown,message=Message,pauseShortcut=PauseShortcut,
         limitations=new[]{"后台消息点击和拖动的兼容性取决于目标程序；触摸可能影响真实指针和焦点。","不支持独立键盘、跨窗口系统拖放和独立悬停；后台滚轮需改用滚动条点击。","当前同一时刻仅支持一个 Agent 控制会话。","没有 SendInput 或真实鼠标瞬移兜底。"}};}
     internal object Dispatch(Dictionary<string,object> request){
