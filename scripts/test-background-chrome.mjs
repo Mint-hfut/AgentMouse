@@ -68,6 +68,13 @@ if (process.argv[2] === '--serve') {
     const { targetId } = await send('Target.createTarget', { url: fixtureUrl, newWindow: true, background: true, left: Math.ceil((before.bounds.x + 32) / dpi), top: Math.ceil((before.bounds.y + 48) / dpi), width: Math.floor(Math.min(900, before.bounds.width - 64) / dpi), height: Math.floor(Math.min(650, before.bounds.height - 96) / dpi) });
     assert.equal(foreground().windowId, before.windowId, 'Chrome setup activated its window; no input test was run');
     const sessionId = extensionTest ? null : (await send('Target.attachToTarget', { targetId, flatten: true })).sessionId;
+    if (extensionTest) {
+      const setupSession=(await send('Target.attachToTarget',{targetId,flatten:true})).sessionId;
+      await send('Runtime.runIfWaitingForDebugger',{},setupSession);
+      const navigation=await send('Page.navigate',{url:fixtureUrl},setupSession);
+      if(navigation.errorText)throw new Error('Fixture navigation failed: '+navigation.errorText);
+      await send('Target.detachFromTarget',{sessionId:setupSession});
+    }
     try { await waitFor(async () => { const info = await send('Target.getTargetInfo', { targetId }); return info.targetInfo.title.startsWith('APCOMPAT-' + marker) ? info : null; }); }
     catch(error){
       console.log(JSON.stringify({startupTarget:await send('Target.getTargetInfo',{targetId})}));
