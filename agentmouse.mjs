@@ -10,16 +10,17 @@ export async function prepareHost(host, directory) {
   if (!['dsh', 'workbuddy'].includes(host) || !directory) throw new Error('Usage: prepare dsh|workbuddy <new-directory>');
   const destination=resolve(directory);
   await mkdir(destination); // Refuse to overwrite an existing installation or user directory.
-  const files=['mcp-server.mjs','agentmouse.mjs','dist/AgentMouse.exe','dist/AgentMouse.Cli.exe'];
+  const files=['mcp-server.mjs','agentmouse.mjs','browser-router.mjs','bridge-client.mjs','browser-pointer.mjs','bridge-server.mjs','scripts/browser-setup.mjs','scripts/bridge-daemon.mjs','dist/AgentMouse.exe','dist/AgentMouse.Cli.exe'];
   for(const file of files){const target=join(destination,file);await mkdir(dirname(target),{recursive:true});await cp(join(root,file),target);}
   await cp(join(root,'skills'),join(destination,'skills'),{recursive:true});
+  await cp(join(root,'browser-extension'),join(destination,'browser-extension'),{recursive:true});
   if(host==='workbuddy'){
     await cp(join(root,'adapters/workbuddy/connector-meta.json'),join(destination,'connector-meta.json'));
     await cp(join(root,'assets/icon.svg'),join(destination,'icon.svg'));
     await writeFile(join(destination,'mcp.json'),JSON.stringify(hostConfig(host,destination),null,2));
   }else{
     await writeFile(join(destination,'cordis.patch.yml'),JSON.stringify(hostConfig(host,destination),null,2));
-    await writeFile(join(destination,'package.json'),JSON.stringify({name:'dsh-agentmouse',version:'0.5.1',private:true,dsh:{bundle:{patch:'./cordis.patch.yml'}}},null,2));
+    await writeFile(join(destination,'package.json'),JSON.stringify({name:'dsh-agentmouse',version:'0.6.0-beta.1',private:true,dsh:{bundle:{patch:'./cordis.patch.yml'}}},null,2));
   }
   await writeFile(join(destination,'setup.mjs'),`import {writeFile,rename} from 'node:fs/promises';\nimport {dirname,join} from 'node:path';\nimport {fileURLToPath} from 'node:url';\nimport {hostConfig} from './agentmouse.mjs';\nconst root=dirname(fileURLToPath(import.meta.url));\nconst file=join(root,${JSON.stringify(host==='dsh'?'cordis.patch.yml':'mcp.json')});\nawait writeFile(file+'.tmp',JSON.stringify(hostConfig(${JSON.stringify(host)},root),null,2));\nawait rename(file+'.tmp',file);\nconsole.log('Updated '+file);\n`);
   return {host,directory:destination,note:'After extraction or relocation, run node setup.mjs in this directory to regenerate local paths.'};
@@ -39,6 +40,16 @@ export function hostConfig(host, pluginRoot = root, executable = process.execPat
 
 export async function run(args) {
   const [command, host] = args;
+  if (command === 'browser-setup') {
+    if (!existsSync(join(root, 'dist/AgentMouse.Cli.exe'))) (await import('./scripts/build-native.mjs')).buildNative(root);
+    const result = await (await import('./scripts/browser-setup.mjs')).setupBrowserBridge({ sourceRoot: root });
+    process.stdout.write(JSON.stringify(result, null, 2) + '\n'); return 0;
+  }
+  if (command === 'browser-status' || command === 'browser-stop') {
+    const { bridgeConfig, browserCall } = await import('./bridge-client.mjs');
+    const config = await bridgeConfig();
+    process.stdout.write(JSON.stringify(config ? await browserCall({ method: command === 'browser-stop' ? 'pause' : 'status' }) : { configured: false }, null, 2) + '\n'); return 0;
+  }
   if (command === 'prepare') { process.stdout.write(`${JSON.stringify(await prepareHost(host,args[2]),null,2)}\n`); return 0; }
   if (command === 'config') { const value = hostConfig(host); process.stdout.write(typeof value === 'string' ? value : `${JSON.stringify(value, null, 2)}\n`); return 0; }
   if (command === 'doctor') {
@@ -49,8 +60,8 @@ export async function run(args) {
     return supported && !missing.length ? 0 : 1;
   }
   const method = { start: 'open', status: 'status', stop: 'pause' }[command];
-  if (!method) { process.stderr.write('Usage: node agentmouse.mjs start|status|stop|doctor|config <host>|prepare dsh|workbuddy <new-directory>\n'); return 2; }
-  const response = await callApp({ method });
+  if (!method) { process.stderr.write('Usage: node agentmouse.mjs start|status|stop|doctor|browser-setup|browser-status|browser-stop|config <host>|prepare dsh|workbuddy <new-directory>\n'); return 2; }
+  const response = await (await import('./browser-router.mjs')).browserRouter(callApp)({ method });
   if (command === 'stop' && response.error?.code === 'not_running') { process.stdout.write('{"ok":true,"alreadyStopped":true}\n'); return 0; }
   process.stdout.write(`${JSON.stringify(response)}\n`);
   return response.ok ? 0 : 1;

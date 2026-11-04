@@ -12,6 +12,8 @@
 
 `commands/` 提供 start、status、stop、doctor；对应 `agentmouse-*` 技能不依赖统一的斜杠命令语法。
 
+0.6 测试版另附 Browser Bridge。安装器只准备配对目录，用户在 Chrome 加载一次生成的扩展；不修改现有资料目录、不开放调试端口或绕过策略。网页任务使用 `browser:` 标签页，按真实截图坐标操作。ZCode 在 Windows 替换既有缓存时可能出现 EPERM，版本/来源变化时安装器通过其原生命令保留数据并重装 AgentMouse 自己的插件与市场，避免改动其他插件。
+
 需要 DSH 原生 bundle 或 WorkBuddy Connector 目录时，在已构建目录运行：
 
 ```powershell

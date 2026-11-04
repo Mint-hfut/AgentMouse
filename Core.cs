@@ -6,6 +6,7 @@ using System.Drawing.Imaging;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
@@ -46,6 +47,7 @@ internal sealed class Observation {
     internal Native.Rect Bounds;
     internal long At;
     internal List<ObservedWindow> Windows;
+    internal ObservedWindow Target;
 }
 internal sealed class ObservedWindow {
     internal IntPtr Handle;
@@ -121,7 +123,9 @@ internal sealed class Engine {
     private readonly object sync=new object();
     private readonly object operation=new object();
     private Observation observation;
+    private Task<object> windowCapture;
     internal volatile bool Armed,Stopped,PointerVisible=true;
+    internal volatile bool MessageButtonHeld;
     internal volatile string Mode="background";
     internal volatile string Message="已暂停。点击允许全桌面操作即可启用。";
     internal volatile string PauseShortcut="尚未注册";
@@ -129,8 +133,9 @@ internal sealed class Engine {
     private int cancelGeneration;
     internal IntPtr Owner;
     internal IntPtr OverlayWindow;
+    internal IntPtr FixtureWindow;
     internal bool ShowPointer {get{return Armed&&PointerVisible&&!Stopped;}}
-    internal void Pause(string reason){Armed=false;Interlocked.Increment(ref cancelGeneration);Message=reason;}
+    internal void Pause(string reason){Armed=false;Interlocked.Increment(ref cancelGeneration);Message=reason;if(windowCapture!=null)WindowCapture.Reset();}
     internal static List<WindowItem> Windows(IntPtr exclude){
         var items=new List<WindowItem>();
         Native.EnumWindows(delegate(IntPtr w,IntPtr unused){
@@ -145,16 +150,17 @@ internal sealed class Engine {
     internal object Status(){
         Native.Point real;bool available=Native.GetCursorPos(out real);Native.Rect bounds;object shown=null;
         if(OverlayWindow!=IntPtr.Zero&&Native.GetWindowRect(OverlayWindow,out bounds))shown=new{x=bounds.Left,y=bounds.Top,width=bounds.Width,height=bounds.Height};
-        return new{armed=Armed,mode=Mode,scope="desktop",pointer=new{x=X,y=Y,visible=ShowPointer},
+        return new{controllerVersion="0.6.0-beta.1",backgroundWindowCapture=true,windowMessageGestures=true,foregroundWindowId=Native.GetForegroundWindow().ToInt64().ToString(),windowZOrder=CaptureWindows().ConvertAll<string>(w=>w.Handle.ToInt64().ToString()),humanInputSequence=Human.Sequence,backgroundButtonHeld=MessageButtonHeld,armed=Armed,mode=Mode,scope="desktop",pointer=new{x=X,y=Y,visible=ShowPointer},
         systemPointer=new{x=real.X,y=real.Y,available=available},overlayBounds=shown,message=Message,pauseShortcut=PauseShortcut,
-        limitations=new[]{"后台点击兼容性取决于目标程序；触摸可能移动真实指针并激活窗口。","不支持独立键盘；后台鼠标拖拽和原生悬停尚未实现。","当前同一时刻仅支持一个 Agent 控制会话。","没有 SendInput 或真实鼠标瞬移兜底。"}};}
+        limitations=new[]{"后台消息点击和拖动的兼容性取决于目标程序；触摸可能影响真实指针和焦点。","不支持独立键盘、跨窗口系统拖放和独立悬停；后台滚轮需改用滚动条点击。","当前同一时刻仅支持一个 Agent 控制会话。","没有 SendInput 或真实鼠标瞬移兜底。"}};}
     internal object Dispatch(Dictionary<string,object> request){
         string method=Json.Text(request,"method","");
         switch(method){
         case "status":return Status();
         case "list_windows":var ws=Windows(Owner);return ws.ConvertAll<object>(w=>w.Export());
         case "pause":Pause("Agent 已请求暂停。");return Status();
-        case "observe":lock(operation){return Observe(Json.Flag(request,"screenshot",true),Json.Text(request,"windowId",""));}
+        case "release_capture":if(windowCapture!=null)WindowCapture.Reset();return Status();
+        case "observe":lock(operation){return Observe(Json.Flag(request,"screenshot",true),Json.Text(request,"windowId",""),Json.Text(request,"capture","desktop"));}
         case "move":{
             var p=ReadPoint(request,"x","y");X=p.X;Y=p.Y;return new{x=X,y=Y,note="仅更新 Agent 坐标，未请求系统鼠标移动。"};
         }
@@ -177,18 +183,34 @@ internal sealed class Engine {
             uint pid;Native.GetWindowThreadProcessId(w,out pid);list.Add(new ObservedWindow{Handle=w,Pid=pid,Bounds=bounds});return true;
         },IntPtr.Zero);return list;
     }
-    private object Observe(bool screenshot,string windowId){
+    private object Observe(bool screenshot,string windowId,string capture="desktop"){
+        lock(sync){observation=null;}
+        if(capture!="desktop"&&capture!="window")throw new Fault("invalid_argument","capture 必须为 desktop 或 window。");
+        if(capture=="window"&&windowId=="")throw new Fault("invalid_argument","后台窗口采集需要 windowId；这只是本次观察的地址，不是长期绑定。");
+        if(capture=="window"&&!screenshot)throw new Fault("invalid_argument","后台窗口操作必须先取得真实后台截图，不能跳过画面采集。");
         var desktop=DesktopBounds();Rectangle region=new Rectangle(desktop.Left,desktop.Top,desktop.Width,desktop.Height);object window=null;
+        ObservedWindow target=null;
         if(windowId!=""){
             long id;if(!long.TryParse(windowId,out id)||id<=0)throw new Fault("invalid_argument","windowId 必须是有效的窗口编号。");
             IntPtr handle=new IntPtr(id);
             if(!Native.IsWindow(handle)||!Native.IsWindowVisible(handle)||Native.IsIconic(handle))throw new Fault("window_missing","要查看的窗口已关闭、不可见或最小化。");
             var r=Bounds(handle);region=Rectangle.Intersect(region,new Rectangle(r.Left,r.Top,r.Width,r.Height));
             window=new{windowId=id.ToString(),title=Native.Title(handle)};
+            if(capture=="window"){
+                if(Native.GetAncestor(handle,2)!=handle)throw new Fault("invalid_argument","windowId 必须来自可见顶层窗口列表。");
+                uint pid;Native.GetWindowThreadProcessId(handle,out pid);target=new ObservedWindow{Handle=handle,Pid=pid,Bounds=r};
+            }
         }
         if(region.Width<=0||region.Height<=0)throw new Fault("offscreen","截图区域不在显示器内。");
+        if(target!=null)ValidateTarget(target);
+        IntPtr captureForeground=Native.GetForegroundWindow();bool coveredBefore=target!=null&&Above(captureForeground,target.Handle);
         object picture=null;
-        if(screenshot){
+        if(screenshot&&target!=null){
+            if(windowCapture!=null&&!windowCapture.IsCompleted)throw new Fault("capture_busy","上次后台画面采集尚未结束，请稍后再观察。");
+            windowCapture=Task.Run(()=>WindowCapture.Capture(target.Handle,target.Bounds));
+            try{if(!windowCapture.Wait(3000))throw new Fault("capture_timeout","后台画面采集超时；没有激活目标窗口。");picture=windowCapture.Result;}
+            catch(AggregateException error){throw error.GetBaseException();}
+        }else if(screenshot){
             double scale=Math.Min(1,Math.Sqrt(4000000.0/((long)region.Width*region.Height)));
             int width=Math.Max(1,(int)(region.Width*scale)),height=Math.Max(1,(int)(region.Height*scale));
             double scaleX=(double)region.Width/width,scaleY=(double)region.Height/height;
@@ -205,10 +227,14 @@ internal sealed class Engine {
                 picture=new{mimeType="image/png",data=Convert.ToBase64String(stream.ToArray()),x=region.Left,y=region.Top,width=width,height=height,sourceWidth=region.Width,sourceHeight=region.Height,scaleX=scaleX,scaleY=scaleY};
             }
         }
-        var o=new Observation{Token=Guid.NewGuid().ToString("N"),Bounds=desktop,At=InputTracker.Now,Windows=CaptureWindows()};
+        if(target!=null)ValidateTarget(target);
+        var o=new Observation{Token=Guid.NewGuid().ToString("N"),Bounds=desktop,At=InputTracker.Now,Windows=CaptureWindows(),Target=target};
+        if(target!=null&&(Native.GetForegroundWindow()!=captureForeground||(coveredBefore&&Above(target.Handle,captureForeground)))){
+            Pause("后台画面采集期间前台窗口或层级发生变化，已暂停。");throw new Fault("capture_interference","采集期间焦点或层级发生变化，没有把本次画面当成无干扰操作。");
+        }
         lock(sync){observation=o;}
-        return new{scope="desktop",observationId=o.Token,validForMs=15000,window=window,bounds=new{x=desktop.Left,y=desktop.Top,width=desktop.Width,height=desktop.Height},screenshot=picture,
-            note="全桌面操作，无窗口绑定。x/y 为屏幕物理像素；截图像素须按 screenX=screenshot.x+imageX*scaleX，screenY=screenshot.y+imageY*scaleY 换算。"};
+        return new{scope=target==null?"desktop":"window",capture=capture,observationId=o.Token,validForMs=15000,window=window,bounds=new{x=desktop.Left,y=desktop.Top,width=desktop.Width,height=desktop.Height},screenshot=picture,
+            note=target==null?"桌面落点路由。windowId 仅裁剪屏幕截图。":"本次观察按窗口句柄采集和操作，允许被遮挡；不切到前台。x/y 仍为屏幕物理像素，请按截图原点和 scaleX/scaleY 换算。"};
     }
     private Observation Validate(Dictionary<string,object> a){
         Observation o;lock(sync){o=observation;}
@@ -223,6 +249,7 @@ internal sealed class Engine {
         if(!inside)throw new Fault("offscreen","坐标不在任何实际显示器内。");return p;
     }
     private ObservedWindow Hit(Observation o,Native.Point p){
+        if(o.Target!=null){ValidateTarget(o.Target);if(!o.Target.Bounds.Contains(p.X,p.Y))throw new Fault("offscreen","坐标超出本次后台窗口观察的范围。");return o.Target;}
         IntPtr hit=Native.WindowFromPoint(p);
         IntPtr root=Native.GetAncestor(hit,2);if(root==IntPtr.Zero)root=hit;
         var saved=o.Windows.Find(w=>w.Handle==root);
@@ -238,6 +265,12 @@ internal sealed class Engine {
         if(!Native.IsWindowEnabled(hit))throw new Fault("disabled","目标控件当前不可用。");
         return saved;
     }
+    private static void ValidateTarget(ObservedWindow target){
+        uint pid;Native.GetWindowThreadProcessId(target.Handle,out pid);
+        if(!Native.IsWindow(target.Handle)||!Native.IsWindowVisible(target.Handle)||Native.IsIconic(target.Handle)||pid!=target.Pid||!SameBounds(Bounds(target.Handle),target.Bounds))throw new Fault("window_changed","后台目标窗口已关闭、移动、最小化或发生变化，请重新观察。");
+        if(!Native.IsWindowEnabled(target.Handle))throw new Fault("disabled","后台窗口当前不可用，请处理其对话框。");
+        int cloaked;if(Native.DwmGetWindowAttribute(target.Handle,14,out cloaked,4)==0&&cloaked!=0)throw new Fault("window_changed","后台窗口被系统隐藏，请在原桌面恢复可采集状态。");
+    }
     private void Gate(int generation){
         if(!Armed||Stopped||generation!=Interlocked.CompareExchange(ref cancelGeneration,0,0))throw new Fault("paused","操作已暂停。");
     }
@@ -250,19 +283,75 @@ internal sealed class Engine {
         }
         Gate(generation);
     }
-    private static IntPtr ChildAt(IntPtr root,Native.Point p){
+    private static IntPtr ChildAt(IntPtr root,Native.Point p,bool backgroundWindow=false){
         IntPtr current=root;
         for(int i=0;i<16;i++){
             var local=p;Native.ScreenToClient(current,ref local);
-            IntPtr child=Native.ChildWindowFromPointEx(current,local,7);
+            IntPtr child=Native.ChildWindowFromPointEx(current,local,backgroundWindow?3u:7u);
             if(child==IntPtr.Zero||child==current)break;current=child;
         }return current;
     }
+    private static bool Above(IntPtr first,IntPtr second){
+        bool result=false;Native.EnumWindows(delegate(IntPtr window,IntPtr unused){if(window==first){result=true;return false;}return window!=second;},IntPtr.Zero);return first!=second&&result;
+    }
+    private static List<Native.Point> GesturePath(Dictionary<string,object> request,Native.Point from,Native.Point to){
+        var result=new List<Native.Point>{from};object value;
+        if(request.TryGetValue("path",out value)){
+            var points=value as System.Collections.IList;if(points==null||points.Count>128)throw new Fault("invalid_argument","path 必须是最多 128 个中间坐标的数组。");
+            foreach(object item in points){var row=item as Dictionary<string,object>;if(row==null||row.Count!=2||!row.ContainsKey("x")||!row.ContainsKey("y"))throw new Fault("invalid_argument","path 每个坐标只能包含整数 x、y。");result.Add(ReadPoint(row,"x","y"));}
+        }
+        result.Add(to);return result;
+    }
+    private static Native.Point ClientPoint(IntPtr receiver,Native.Point screen){
+        if(!Native.ScreenToClient(receiver,ref screen)||screen.X<short.MinValue||screen.X>short.MaxValue||screen.Y<short.MinValue||screen.Y>short.MaxValue)throw new Fault("unsupported","控件坐标超出窗口消息范围。");return screen;
+    }
+    private void MessageGesture(IntPtr receiver,ObservedWindow target,List<Native.Point> path,bool drag,int duration,int count,int hold,string button,int generation,int humanSequence,IntPtr foreground){
+        uint receiverPid;Native.GetWindowThreadProcessId(receiver,out receiverPid);
+        bool wasBehind=Above(foreground,target.Handle);
+        foreach(var point in path)ClientPoint(receiver,point);
+        var cumulative=new double[path.Count];for(int i=1;i<path.Count;i++){double dx=path[i].X-path[i-1].X,dy=path[i].Y-path[i-1].Y;cumulative[i]=cumulative[i-1]+Math.Sqrt(dx*dx+dy*dy);}
+        uint down=button=="left"?Native.LEFTDOWN:Native.RIGHTDOWN,up=button=="left"?Native.LEFTUP:Native.RIGHTUP,twice=button=="left"?Native.LEFTDOUBLE:Native.RIGHTDOUBLE;
+        uint pressed=button=="left"?1u:2u;var last=ClientPoint(receiver,path[0]);
+        Native.Send(receiver,Native.MOVE,UIntPtr.Zero,Native.Pack(last.X,last.Y));
+        for(int click=0;click<count;click++){
+            Gate(generation);if(Human.Sequence!=humanSequence)throw new Fault("human_busy","检测到你的新输入，本次手势已取消。");
+            ValidateTarget(target);if(Native.GetForegroundWindow()!=foreground||(wasBehind&&Above(target.Handle,foreground)))throw new Fault("foreground_interference","前台或窗口层级变化，已取消后续手势。");
+            bool started=false;
+            try{
+                started=true;MessageButtonHeld=true;Native.Send(receiver,click==0?down:twice,new UIntPtr(pressed),Native.Pack(last.X,last.Y));
+                long start=InputTracker.Now;int span=drag?duration:hold;
+                while(span>0){
+                    Gate(generation);if(Human.Sequence!=humanSequence)throw new Fault("interrupted","检测到你的输入，后台手势已取消并释放按键。");
+                    ValidateTarget(target);uint pid;Native.GetWindowThreadProcessId(receiver,out pid);
+                    if(!Native.IsWindow(receiver)||pid!=receiverPid)throw new Fault("window_changed","手势接收控件已经变化。");
+                    if(Native.GetForegroundWindow()!=foreground||(wasBehind&&Above(target.Handle,foreground)))throw new Fault("foreground_interference","手势期间前台或层级变化，已取消并释放。");
+                    double fraction=Math.Min(1,InputTracker.Milliseconds(start)/span);
+                    if(drag){
+                        double distance=fraction*cumulative[cumulative.Length-1];int segment=1;while(segment<cumulative.Length-1&&cumulative[segment]<distance)segment++;
+                        double length=cumulative[segment]-cumulative[segment-1],t=length<=0?1:(distance-cumulative[segment-1])/length;
+                        var point=new Native.Point((int)Math.Round(path[segment-1].X+(path[segment].X-path[segment-1].X)*t),(int)Math.Round(path[segment-1].Y+(path[segment].Y-path[segment-1].Y)*t));
+                        last=ClientPoint(receiver,point);Native.Send(receiver,Native.MOVE,new UIntPtr(pressed),Native.Pack(last.X,last.Y));X=point.X;Y=point.Y;
+                    }
+                    if(fraction>=1)break;Thread.Sleep(12);
+                }
+            }finally{
+                if(started){
+                    uint pid;Native.GetWindowThreadProcessId(receiver,out pid);
+                    if(!Native.IsWindow(receiver)||pid!=receiverPid)MessageButtonHeld=false;
+                    else try{Native.Send(receiver,up,UIntPtr.Zero,Native.Pack(last.X,last.Y));MessageButtonHeld=false;}
+                    catch{Pause("后台按键释放未确认，请手动取消目标操作后重开控制器。");try{Native.Post(receiver,Native.CANCELMODE,UIntPtr.Zero,IntPtr.Zero);}catch{}throw new Fault("button_release_unconfirmed","按键释放未确认，禁止继续输入；请手动取消目标操作后重开控制器。");}
+                }
+            }
+            if(click+1<count)Thread.Sleep(40);
+        }
+    }
     private object Act(Dictionary<string,object> a,bool drag,bool scroll=false){
         int generation=Interlocked.CompareExchange(ref cancelGeneration,0,0);Gate(generation);
-        if(Touch.Active){Pause("仍有未确认释放的触点，请退出并重新打开程序。");throw new Fault("contact_unreleased","仍有未确认释放的触点，请退出并重新打开程序。");}
+        if(Touch.Active||MessageButtonHeld){Pause("仍有未确认释放的按键或触点，请手动取消目标操作。");throw new Fault("contact_unreleased","仍有未确认释放的按键或触点，请手动取消目标操作后重开控制器。");}
         string mode=Mode;
-        if(drag&&mode!="touch")throw new Fault("unsupported","后台点击通道不执行拖拽，请在界面选择触摸通道。触摸拖动与鼠标拖动的语义可能不同。");
+        int count=!drag&&!scroll?Json.Number(a,"clickCount",1,2,1):1,hold=!drag&&!scroll?Json.Number(a,"holdMs",0,2000,0):0;
+        if(count>1&&hold>0)throw new Fault("invalid_argument","双击不能同时设置长按。");
+        if(mode=="touch"&&(count>1||hold>0||a.ContainsKey("path")))throw new Fault("unsupported","双击、长按和路径拖动仅支持后台消息模式。");
         int delta=scroll?Json.Number(a,"delta",-1200,1200):0;
         if(scroll&&delta==0)throw new Fault("invalid_argument","delta 不能为零；负数向下滚动，正数向上。");
         string button=Json.Text(a,"button","left");
@@ -272,35 +361,38 @@ internal sealed class Engine {
         if(scroll&&mode=="touch"){
             to=ReadPoint(new Dictionary<string,object>{{"x",from.X},{"y",from.Y+delta}},"x","y");drag=true;
         }
-        int duration=drag?Json.Number(a,"durationMs",100,2000,400):40;
-        var o=Validate(a);Hit(o,from);Hit(o,to);
+        int duration=drag?Json.Number(a,"durationMs",100,mode=="touch"?2000:5000,400):40;
+        var path=drag?GesturePath(a,from,to):new List<Native.Point>{from,to};
+        var o=Validate(a);
+        if(o.Target!=null&&mode!="background")throw new Fault("unsupported","被遮挡窗口仅支持后台消息通道；不会使用触摸或置前窗口兜底。");
+        if(o.Target!=null&&scroll)throw new Fault("unsupported","后台窗口不发送可能按前台落点重定向的滚轮消息。请根据后台截图，使用 pointer_click 点击滚动条或翻页按钮。");
+        var initialTarget=Hit(o,from);foreach(var point in path)if(mode=="background"&&Hit(o,point).Handle!=initialTarget.Handle)throw new Fault("unsupported","后台拖动仅支持同一窗口内部的手势，不执行跨窗口系统拖放。");
         WaitForIdle(generation);
         o=Validate(a);var target=Hit(o,from);Hit(o,to);
+        if(FixtureWindow!=IntPtr.Zero&&target.Handle!=FixtureWindow)throw new Fault("unsupported","隔离测试仅允许操作自建测试窗口。");
+        if(mode=="background"&&Native.GetForegroundWindow()!=target.Handle&&Native.Class(target.Handle).StartsWith("Chrome_",StringComparison.Ordinal))throw new Fault("browser_channel_required","该 Chromium 窗口可能主动激活或置前。后台网页操作请使用 Browser Bridge 的 browser: 标签页，不能回退为原生鼠标消息。");
+        if(mode=="background"&&Native.GetForegroundWindow()!=target.Handle&&Native.Class(target.Handle).StartsWith("Chrome_",StringComparison.Ordinal))throw new Fault("browser_channel_required","该 Chromium 窗口可能在原生鼠标消息中主动置前。请使用 Browser Bridge 的 browser: 标签页进行后台网页操作。");
         if(Mode!=mode)throw new Fault("mode_changed","执行通道已更换，请重新观察。");
         lock(sync){observation=null;}
         IntPtr foreground=Native.GetForegroundWindow();Native.Point cursor;Native.GetCursorPos(out cursor);
+        bool behindForeground=o.Target!=null&&Above(foreground,target.Handle);
         int humanSequence=Human.Sequence;bool delivered=false;
         IntPtr receiver=IntPtr.Zero;Native.Point receiverPoint=new Native.Point();
         X=from.X;Y=from.Y;
         try{
             Message=mode=="touch"?"正在执行触摸操作…":"正在执行后台点击…";
             if(mode=="background"){
-                IntPtr child=ChildAt(target.Handle,from);var p=from;Native.ScreenToClient(child,ref p);
+                IntPtr child=ChildAt(target.Handle,from,o.Target!=null);var p=ClientPoint(child,from);
                 receiver=child;receiverPoint=p;
                 // LPARAM mouse coordinates are signed 16-bit client pixels.
                 if(p.X<short.MinValue||p.X>short.MaxValue||p.Y<short.MinValue||p.Y>short.MaxValue)throw new Fault("unsupported","控件坐标超出窗口消息范围。");
                 if(scroll){
                     if(from.X<short.MinValue||from.X>short.MaxValue||from.Y<short.MinValue||from.Y>short.MaxValue)throw new Fault("unsupported","滚轮坐标超出窗口消息范围。");
+                    Native.Send(child,Native.MOVE,UIntPtr.Zero,Native.Pack(p.X,p.Y));
                     Gate(generation);if(Human.Sequence!=humanSequence)throw new Fault("human_busy","检测到你的新输入，滚动已取消。");
-                    // Wheel handlers may synchronously call back into the sender; queue instead of timing out after a successful scroll.
                     Native.Post(child,Native.WHEEL,new UIntPtr(unchecked((uint)(ushort)delta<<16)),Native.Pack(from.X,from.Y));
                 }else{
-                    uint down=button=="left"?Native.LEFTDOWN:Native.RIGHTDOWN,up=button=="left"?Native.LEFTUP:Native.RIGHTUP;
-                    Native.Send(child,Native.MOVE,UIntPtr.Zero,Native.Pack(p.X,p.Y));
-                    Gate(generation);if(Human.Sequence!=humanSequence)throw new Fault("human_busy","检测到你的新输入，点击已取消。");
-                    bool started=false;
-                    try{started=true;Native.Send(child,down,new UIntPtr(button=="left"?1u:2u),Native.Pack(p.X,p.Y));}
-                    finally{if(started){Native.Send(child,up,UIntPtr.Zero,Native.Pack(p.X,p.Y));}}
+                    MessageGesture(child,target,path,drag,duration,count,hold,button,generation,humanSequence,foreground);
                 }
                 delivered=true;
             }else{
@@ -327,11 +419,14 @@ internal sealed class Engine {
             Thread.Sleep(60);
             Native.Point after;Native.GetCursorPos(out after);
             bool focusChanged=Native.GetForegroundWindow()!=foreground;
+            bool raisedAboveForeground=behindForeground&&Above(target.Handle,foreground);
             bool cursorChanged=Human.Sequence==humanSequence&&(cursor.X!=after.X||cursor.Y!=after.Y);
             bool externalInput=Human.Sequence!=humanSequence;
-            if(cursorChanged||externalInput)Pause(externalInput?"检测到新的外部输入，已暂停。":"检测到系统指针位置变化，已暂停。");
+            if(o.Target!=null&&(focusChanged||raisedAboveForeground))Pause("后台目标应用改变了焦点或层级，已暂停；本次不算无干扰操作。");
+            else if(cursorChanged||externalInput)Pause(externalInput?"检测到新的外部输入，已暂停。":"检测到系统指针位置变化，已暂停。");
             else Message=focusChanged?"输入已送达，前台窗口发生变化；请重新观察后继续。":"输入已送达；请重新观察目标窗口确认结果。";
-            return new{inputDelivered=delivered,businessResultVerified=false,backend=mode,focusChanged=focusChanged,
+            IntPtr over=Native.WindowFromPoint(from);IntPtr overRoot=Native.GetAncestor(over,2);
+            return new{inputDelivered=delivered,businessResultVerified=false,backend=mode,dragCompleted=drag&&delivered,clickCount=count,holdMs=hold,buttonReleased=!MessageButtonHeld,focusChanged=focusChanged,raisedAboveForeground=raisedAboveForeground,backgroundTarget=o.Target!=null,targetOccludedAtPoint=o.Target!=null&&overRoot!=target.Handle,backgroundInterferenceFree=o.Target!=null&&!focusChanged&&!raisedAboveForeground&&!cursorChanged&&!externalInput,
                 windowId=target.Handle.ToInt64().ToString(),receiverClass=receiver==IntPtr.Zero?null:Native.Class(receiver),receiverPoint=new{x=receiverPoint.X,y=receiverPoint.Y},
                 cursorChangedWithoutHumanInput=cursorChanged,systemPointerBefore=new{x=cursor.X,y=cursor.Y},systemPointerAfter=new{x=after.X,y=after.Y},
                 externalInputDuringAction=externalInput,paused=!Armed};

@@ -5,6 +5,7 @@ using System.Text;
 namespace AgentPointer {
 internal static class Native {
     internal const uint MOVE=0x200, LEFTDOWN=0x201, LEFTUP=0x202, RIGHTDOWN=0x204, RIGHTUP=0x205;
+    internal const uint LEFTDOUBLE=0x203,RIGHTDOUBLE=0x206;
     internal const uint WHEEL=0x20a, CANCELMODE=0x1f;
     internal const uint INRANGE=2, INCONTACT=4, DOWN=0x10000, UPDATE=0x20000, UP=0x40000, CANCELED=0x8000;
     [StructLayout(LayoutKind.Sequential)] internal struct Point { public int X,Y; public Point(int x,int y){X=x;Y=y;} }
@@ -49,6 +50,7 @@ internal static class Native {
     [DllImport("user32.dll")] internal static extern bool IsIconic(IntPtr w);
     [DllImport("user32.dll")] internal static extern bool GetWindowRect(IntPtr w,out Rect rect);
     [DllImport("user32.dll")] internal static extern bool GetClientRect(IntPtr w,out Rect rect);
+    [DllImport("user32.dll")] internal static extern uint GetDpiForWindow(IntPtr window);
     [DllImport("user32.dll")] internal static extern bool ScreenToClient(IntPtr w,ref Point point);
     [DllImport("user32.dll")] internal static extern bool ClientToScreen(IntPtr w,ref Point point);
     [DllImport("user32.dll")] internal static extern IntPtr ChildWindowFromPointEx(IntPtr parent,Point point,uint flags);

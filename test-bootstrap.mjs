@@ -8,7 +8,7 @@ const temp = await mkdtemp(join(tmpdir(), 'agentmouse-bootstrap-'));
 const client = new Client({ name: 'agentmouse-source-bootstrap', version: '0.5.1' });
 try {
   await mkdir(join(temp, 'scripts'));
-  for (const file of ['mcp-server.mjs', 'scripts/build-native.mjs', 'Native.cs', 'Core.cs', 'Transport.cs', 'Ui.cs', 'Program.cs', 'SelfTest.cs']) await cp(resolve(file), join(temp, file));
+  for (const file of ['mcp-server.mjs', 'browser-router.mjs', 'bridge-client.mjs', 'scripts/build-native.mjs', 'Native.cs','WindowCapture.cs', 'Core.cs', 'Transport.cs', 'Ui.cs', 'Program.cs', 'SelfTest.cs']) await cp(resolve(file), join(temp, file));
   await writeFile(join(temp, 'Native.cs'), '#warning AGENTMOUSE_BOOTSTRAP_TEST\n' + await readFile(join(temp, 'Native.cs'), 'utf8'));
   const transport = new StdioClientTransport({ command: process.execPath, args: [join(temp, 'mcp-server.mjs')], cwd: temp, stderr: 'pipe' });
   await client.connect(transport);

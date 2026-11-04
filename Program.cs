@@ -12,6 +12,10 @@ internal static class Program {
         Native.DpiAware();
         try{
             if(args.Length>0&&args[0]=="--state-self-test")return SelfTest.StateOnly();
+            if(args.Length==1&&args[0]=="--foreground-state")return SelfTest.ForegroundState();
+            if(args.Length==3&&args[0]=="--image-color-point")return SelfTest.ImagePoint(args[1],args[2]);
+            if(args.Length==3&&args[0]=="--background-fixture-server")return SelfTest.BackgroundFixtureServer(args[1],args[2]);
+            if((args.Length==3||args.Length==4)&&args[0]=="--probe-background-capture")return SelfTest.ProbeBackgroundCapture(args[1],args[2],args.Length==4?args[3]:"");
             if(args.Length>0&&args[0]=="--self-test")return SelfTest.Run(args.Length>1?args[1]:"test-report.json");
             string pipe=Transport.DefaultName;
             if(args.Length>=2&&args[0]=="--pipe"){pipe=args[1];var rest=new string[args.Length-2];Array.Copy(args,2,rest,0,rest.Length);args=rest;}

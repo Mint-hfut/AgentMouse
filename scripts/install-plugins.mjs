@@ -55,10 +55,29 @@ export async function installPlugins({ agents, sourceRoot, runtimeRoot, home = h
       await writeFile(backup, await readFile(file), { mode: 0o600 }); backups.push({ path: file, backup });
     }
     if (backups.length) { await writeFile(join(backupRoot, 'index.json'), JSON.stringify(backups, null, 2), { mode: 0o600 }); result.backupRoot = backupRoot; }
-    const call = args => run(client.executable, [...client.args, ...args], { cwd: runtimeRoot, env: clientEnv, encoding: 'utf8', windowsHide: true, timeout: 120000, maxBuffer: 8 * 1024 * 1024 });
+    const call = args => run(client.executable, [...client.args, ...args], { cwd: runtimeRoot, env: clientEnv, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, timeout: 120000, maxBuffer: 8 * 1024 * 1024 });
     try {
-      call(agent === 'codex' ? ['plugin', 'marketplace', 'add', runtimeRoot, '--json'] : ['plugins', 'marketplace', 'add', runtimeRoot]);
-      call(agent === 'codex' ? ['plugin', 'add', result.plugin, '--json'] : ['plugins', 'install', result.plugin]);
+      let zcodeCurrent = false;
+      if (agent === 'zcode') {
+        const old = installedPlugin(agent, JSON.parse(call(['plugins', 'list', '--json'])));
+        const markets = JSON.parse(call(['plugins', 'marketplace', 'list', '--json']));
+        const market = markets.find(item => (item.id || item.name) === 'agentmouse');
+        const sameSource = market?.source?.path && resolve(market.source.path).toLowerCase() === runtimeRoot.toLowerCase();
+        zcodeCurrent = !!old && old.version === version && sameSource && !old.diagnostics?.some(item => item.severity === 'error');
+        if (!zcodeCurrent) {
+          // ZCode's Windows cache replacement can fail on an existing source; retain plugin data during its managed reinstall.
+          if (old) call(['plugins', 'uninstall', result.plugin, '--keep-data', '--force']);
+          if (market) call(['plugins', 'marketplace', 'remove', 'agentmouse']);
+        }
+      }
+      const addMarketplace = agent === 'codex' ? ['plugin', 'marketplace', 'add', runtimeRoot, '--json'] : ['plugins', 'marketplace', 'add', runtimeRoot];
+      try { if (!zcodeCurrent) call(addMarketplace); }
+      catch (error) {
+        if (agent !== 'codex' || !/marketplace 'agentmouse' is already added from a different source/.test(error.message)) throw error;
+        // Versioned runtime upgrades relocate only this installer's own marketplace.
+        call(['plugin', 'marketplace', 'remove', 'agentmouse']); call(addMarketplace);
+      }
+      if (!zcodeCurrent) call(agent === 'codex' ? ['plugin', 'add', result.plugin, '--json'] : ['plugins', 'install', result.plugin]);
       if (agent === 'zcode') call(['plugins', 'enable', result.plugin]);
       const listing = JSON.parse(call(agent === 'codex' ? ['plugin', 'list', '--marketplace', 'agentmouse', '--json'] : ['plugins', 'list', '--json']));
       const installed = installedPlugin(agent, listing);

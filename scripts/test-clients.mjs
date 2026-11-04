@@ -19,10 +19,12 @@ for (const agent of ['codex', 'zcode']) {
   await access(join(root, 'skills/agentmouse/SKILL.md'));
   const config = JSON.parse(await readFile(join(root, agent === 'codex' ? 'mcp.json' : '.mcp.json'), 'utf8')).mcpServers.agentmouse;
   const args = config.args.map(arg => arg.replace(/\$\{(?:PLUGIN_ROOT|CLAUDE_PLUGIN_ROOT|ZCODE_PLUGIN_ROOT)\}/g, root));
-  const client = new Client({ name: 'agentmouse-host-acceptance', version: '0.5.1' });
+  const client = new Client({ name: 'agentmouse-host-acceptance', version: '0.6.0-beta.1' });
   try {
     await client.connect(new StdioClientTransport({ command: config.command, args, cwd: root, stderr: 'pipe' }));
-    assert.equal((await client.listTools()).tools.length, 9);
+    const tools = (await client.listTools()).tools;
+    assert.equal(tools.length, 9); assert.equal(client.getServerVersion().version, plugin.version);
+    if (plugin.version.startsWith('0.6.')) assert.deepEqual(tools.find(tool => tool.name === 'pointer_observe').inputSchema.properties.capture.enum, ['desktop', 'window']);
     const status = await client.callTool({ name: 'pointer_status', arguments: {} });
     const value = JSON.parse(status.content.find(item => item.type === 'text').text);
     if (status.isError) assert.equal(value.code, 'not_running'); else assert.equal(value.scope, 'desktop');

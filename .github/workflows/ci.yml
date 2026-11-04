@@ -21,3 +21,9 @@ jobs:
       - name: Fresh source installation
         if: matrix.node == 24
         run: ./scripts/test-source.ps1
+      - name: Real browser-extension gestures (headless component acceptance)
+        if: matrix.node == 24
+        run: |
+          $env:AGENTMOUSE_CHROME = ./scripts/get-test-chrome.ps1
+          node scripts/test-background-chrome.mjs --headless-test --extension-bridge-test
+          if ($LASTEXITCODE -ne 0) { throw 'Browser-extension component tests failed.' }

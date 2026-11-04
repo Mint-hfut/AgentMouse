@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "AgentMouse Browser Bridge",
+  "version": "0.6.0",
+  "description": "Background page images and pixel-based mouse gestures without taking over your system pointer.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2BA/Oe/5FhX71cllH67JR3QbNyWNZMtFd16IIEQy3K/ukEPdSnnTUgUcNVMUeADJ3fCpnwLgwB0AZTfj1djRzoKx/BVOxcbp8PBJ+Krs/rbb/SJIO7eYd/NlStwyZRO2h3BluYCfbDVW5JwNQXJpX+0aLLz9sP0qyuNWvu9VnYqv1fuvLQTDEB20pq/PNM/2hiEFDgFzAlmwjnmhjGZolsRbXiOwk7mgWl+EAre3+2D7ogc0yrNaRJmcB+KUBI3VlW5Ap5fEYa/gNk4pE/DuwNC83SEwHCw3DG6ZHoT6KsmUjGapAnEKd9+cgrUZOruYNupWxGd22Ru0FMEjdmQ2wQIDAQAB",
+  "permissions": [
+    "debugger",
+    "tabs",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; connect-src http://127.0.0.1:*"
+  },
+  "version_name": "0.6.0-beta.1"
+}

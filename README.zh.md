@@ -2,21 +2,19 @@
 
 **让 AI Agent 在后台操作电脑，Agent 指针与用户鼠标解耦，不和你抢鼠标。**
 
-[English](README.md) · [兼容性与测试](docs/compatibility.md) · [反馈问题](https://github.com/Mint-hfut/AgentMouse/issues)
+[English](README.md) · [兼容性与实测记录](docs/compatibility.md) · [下载](https://github.com/Mint-hfut/AgentMouse/releases)
 
-AgentMouse 为智能体提供 Windows 桌面截图、点击和滚动能力。橙色 **AGENT** 指针使用独立坐标，你移动真实鼠标时，它不会跟着移动。默认后台模式通过窗口消息操作界面，不移动系统鼠标，也不主动请求切换前台窗口。
+项目包含 Windows 控制程序、MCP 服务、Agent Skills 和安装脚本，接入 **Claude Code、Codex、ZCode、WorkBuddy、DSH**。无需虚拟机或分屏。
 
-无需虚拟机、分屏或安装驱动。包含本地控制程序、MCP 服务、Agent Skills 和启停命令，一键接入 **Claude Code、Codex、ZCode、WorkBuddy、DSH**，也可手动接入其他支持 MCP 的智能体。
+网页任务使用 **Browser Bridge**：取得真实标签页画面，按图像坐标发送鼠标按下、移动、释放；沿用当前 Chrome 和登录状态，不依赖网页 DOM 选择器、脚本点击或逐网站接口。桌面软件另有通用 Windows 采集和窗口消息通道。
 
-**当前为实验版本，仅支持 Windows x64。** “后台”指尽量不打断你的鼠标操作，目标仍需在当前桌面可见，并非可以任意控制被遮挡或最小化的窗口。应用可能自行改变焦点；触摸实验模式可能移动真实鼠标。它没有为 Windows 创建第二套独立焦点或键盘。见[兼容性说明](docs/compatibility.md)。
+**当前为测试版。** 真实 Chrome 扩展链路已通过无界面组件测试；交互桌面后来不可用，保持用户窗口在前的最终桌面验收仍待补做。不能把它宣传成“所有软件、所有验证码都保证通过”。
 
-## 一键安装
+## 一键安装到智能体
 
-环境要求：Windows x64、**Node.js 18+ x64（含 npm）**、Windows .NET Framework 4.x。通常无需管理员权限；看图操作需要支持图片输入的模型。
+需要 Windows x64、**Node.js 18+ x64（含 npm）** 和 .NET Framework。原生被遮挡窗口采集要求 Windows 10 1903+。
 
-从 [Releases](https://github.com/Mint-hfut/AgentMouse/releases) 下载完整 Windows ZIP（发布后可用），解压后双击 **`install.cmd`**，选择希望接入的智能体。包内含控制程序和安装器依赖，仍需本机安装 Node.js。
-
-源码安装：
+下载 [Windows ZIP](https://github.com/Mint-hfut/AgentMouse/releases)，解压后双击 **`install.cmd`**，选择要接入的智能体。源码方式：
 
 ```powershell
 git clone https://github.com/Mint-hfut/AgentMouse.git
@@ -24,96 +22,96 @@ cd AgentMouse
 .\install.cmd
 ```
 
-源码安装会下载锁定的 npm 依赖，禁用依赖的生命周期脚本，再调用 Windows 自带的 .NET Framework 编译器构建程序。不要求 Visual Studio 或 .NET SDK。
-
-**0.5.1 起，选择 Codex、ZCode 会真正安装原生插件。** Codex 需要 CLI（缺少时可安装 `npm install -g @openai/codex`）；ZCode 使用随客户端附带的插件 CLI，自动查找标准 Windows 安装目录或 PATH。找不到时会明确报错，不会把 MCP 接入冒充插件安装成功。Claude Code、WorkBuddy、DSH 当前仍使用 MCP＋技能接入，不会因此在它们的插件管理页产生插件卡片。
-
-指定安装对象，无需菜单：
+源码安装会下载锁定依赖、禁用依赖生命周期脚本，并使用 Windows 自带的 .NET Framework 编译器构建程序，不要求 Visual Studio 或 .NET SDK。Codex 原生插件安装需要 Codex CLI；ZCode 自动查找标准目录或 PATH 中的客户端插件 CLI。
 
 ```powershell
-.\install.cmd --agent codex
-.\install.cmd --agent claude-code,codex,dsh
+.\install.cmd --agent codex,zcode
 .\install.cmd --agent all
 .\install.cmd --agent dsh --profile web
 .\install.cmd --agent codex --mode mcp
+.\install.cmd --agent codex --browser none
 ```
 
-安装后刷新插件页或重启智能体。Codex、ZCode 应列出 **agentmouse@agentmouse** 为已安装、已启用；安装器会查询原生插件列表确认后才报告成功。`--mode mcp` 明确选择仅 MCP＋技能，不产生插件卡片。随后对智能体说：**“使用 AgentMouse 打开控制器，检查连接状态。”** 在控制器中点击一次 **允许全桌面操作**，即可跨软件执行任务。控制器当前为中文界面。
+Codex、ZCode 默认安装**原生插件**，安装器查询其已安装列表确认启用；另外三种目前增加 **MCP＋技能**，不会因此出现插件卡片。`--mode mcp` 明确选择仅 MCP，`--browser none` 跳过浏览器文件准备。
 
-## 安装器会做什么
+安装后刷新或重启智能体，原生插件名称是 **`agentmouse@agentmouse`**。
 
-运行文件默认保存在 `%LOCALAPPDATA%\AgentMouse\0.5.1`；Windows 打包应用可能重定向该目录，安装器会解析真实路径供其他进程使用。原生模式建立干净的 `plugin/` 目录和市场清单，再通过宿主原生命令安装；配置备份留在插件包外。安装后可删除下载目录，Node.js 仍需保留。
+### 连接你当前的 Chrome
 
-下表是 **仅 MCP 模式** 的配置路径（Claude Code、WorkBuddy、DSH 默认使用；Codex、ZCode 需加 `--mode mcp`）：
+安装器会准备配对的扩展目录并打印路径，通常为 `~/.agentmouse/browser/extension`。**不会自动修改 Chrome 设置、用户资料或企业策略。**
 
-| 智能体 | MCP 配置 | 技能目录 |
-|---|---|---|
-| Claude Code | `~/.claude.json` 的 `mcpServers.agentmouse` | `~/.claude/skills/agentmouse*` |
-| Codex | `~/.codex/config.toml` 的 `mcp_servers.agentmouse` | `~/.agents/skills/agentmouse*` |
-| ZCode | `~/.zcode/cli/config.json` 的 `mcp.servers.agentmouse` | `~/.zcode/skills/agentmouse*` |
-| WorkBuddy | `~/.workbuddy/mcp.json` 的 `mcpServers.agentmouse` | `~/.codebuddy/skills/agentmouse*`（用户级兼容路径） |
-| DSH | `~/.dsh/profiles/<profile>/cordis.patch.yml` 中的 MCP 插件 | `~/.dsh/skills/agentmouse*` |
+1. 你在 Chrome 中打开 `chrome://extensions`，自行开启开发者模式，选择“加载已解压的扩展程序”。
+2. 选安装器打印的**生成目录**，不要选仓库里尚未配对的源码目录。
+3. 查看并授予调试权限，用于读取页面画面和执行鼠标手势。正常使用无需开放调试端口、换浏览器资料目录或关闭 GPU。
+4. 让 Agent 打开 AgentMouse，在本地控制器点击一次“允许全桌面操作”；网页任务选择窗口列表里的 **`browser:`** 标签页。
 
-`~` 是用户主目录。只向选中的智能体注册 MCP；Codex 使用共享技能目录，其他兼容工具也可能发现这些技能。Claude Code、ZCode、WorkBuddy 同时安装命令，五种智能体都有同等用途的启停技能。DSH 默认 `web` profile，需要已有可用的模型与服务配置。
-
-已有其他服务和设置会保留。备份保存到运行目录 `backups/`，`index.json` 记录原路径。重复安装不重复添加。仅 MCP 模式会在配置解析失败时提前退出、写入失败时回滚；原生模式先备份配置和插件登记文件，再调用宿主安装器，失败时明确报告可能已完成的部分，不承诺原生命令的整组回滚。仅 MCP 模式下，非本安装器管理的 AgentMouse TOML 条目不会被覆盖。安装时建议关闭配置编辑器。
-
-仅预览，不写入设置和运行文件：
+若企业策略阻止加载，应联系管理员，软件不会绕过策略。也可单独运行：
 
 ```powershell
-npm ci --ignore-scripts
-.\install.cmd --agent all --dry-run
+node agentmouse.mjs browser-setup
+node agentmouse.mjs browser-status
+node agentmouse.mjs browser-stop
 ```
 
-高级参数：`--home <目录>` 使用独立用户目录并忽略真实目录的环境覆盖，`--install-dir <目录>` 指定运行目录。正常安装识别 `CODEX_HOME`、`CLAUDE_CONFIG_DIR`（技能与命令）、`DSH_HOME`。
+控制器目前为中文界面；Chrome 可能显示标准调试提示。当前一次只使用一个配对的浏览器资料和一个控制 Agent。
 
-原生插件通过宿主插件管理器卸载，Codex 也可用 `codex plugin remove agentmouse@agentmouse`。仅 MCP 模式需先停止 AgentMouse，移除其 MCP 条目、五个技能目录及命令目录，最后删除运行目录。整体恢复备份也会撤销备份之后的其他配置改动。由 0.5.0 升级时，需移除旧的独立 MCP 登记，避免与原生插件重复。
-
-## 使用方式
-
-默认操作整个可见桌面，**不需要绑定目标窗口**。`windowId` 只用于裁剪截图，不限制后续点击范围。
+## 鼠标能力
 
 | MCP 工具 | 功能 |
 |---|---|
-| `pointer_open` | 打开控制器，新实例默认暂停 |
-| `pointer_status` | 查看状态、坐标、模式与限制 |
-| `pointer_list_windows` | 列出可见窗口 |
-| `pointer_observe` | 桌面截图，可选窗口裁剪 |
-| `pointer_move` | 只移动 Agent 指针 |
-| `pointer_click` | 左键或右键点击 |
-| `pointer_scroll` | 在指定位置滚动 |
-| `pointer_drag` | 触摸实验拖动，可能影响真实鼠标和焦点 |
-| `pointer_pause` | 停止输入并隐藏 Agent 箭头 |
+| `pointer_open` | 打开本地控制器，新实例默认暂停 |
+| `pointer_status` | 查看控制器能力、配对和浏览器连接状态 |
+| `pointer_list_windows` | 原生窗口以及已连接的 `browser:` 标签页 |
+| `pointer_observe` | 桌面截图、真实后台窗口表面或浏览器视口画面 |
+| `pointer_move` | 默认仅移动独立箭头；带浏览器观察编号时移动/悬停页面虚拟指针 |
+| `pointer_click` | 左右键；`clickCount=2` 双击，或 `holdMs` 长按 |
+| `pointer_drag` | 按下、沿可选 `path` 路径移动、释放，可控制时长 |
+| `pointer_scroll` | 浏览器后台滚轮；原生遮挡窗口改用截图中的滚动条点击 |
+| `pointer_pause` | 停止、释放按键和采集资源、隐藏箭头 |
 
-坐标是屏幕物理像素，支持多显示器负坐标；截图附带原点和缩放信息。点击、滚动、拖动使用新的 `observationId`，有效期 15 秒，单次使用。智能体必须再次观察来确认效果，`inputDelivered` 不等于任务完成。
+没有长期绑定某个目标。`capture="desktop"` 按可见屏幕落点路由，原生 `windowId` 只裁剪屏幕；`capture="window"` 则针对本次观察的窗口句柄或 `browser:` 标签页。下一次可观察并操作其他目标。
 
-你正在使用键鼠时，Agent 会等待，检测到冲突时取消操作。这用于减少干扰，并不意味着两套独立键盘或焦点可以完全同时工作。后台模式没有完整原生悬停、拖拽或文字输入能力；不兼容时不会偷偷调用真实鼠标瞬移兜底。
+**以返回的坐标空间为准：** 原生图像用屏幕物理像素；浏览器图像用视口 CSS 像素。两者都返回原点和缩放：
 
-停止方式：控制器暂停按钮、界面显示的全局快捷键（通常 **Ctrl+Alt+P**）、MCP `pointer_pause`，或：
-
-```powershell
-node agentmouse.mjs stop
+```text
+x = screenshot.x + imageX * screenshot.scaleX
+y = screenshot.y + imageY * screenshot.scaleY
 ```
 
-暂停后箭头隐藏，关闭控制器则完全退出。技能要求任务结束或中断后暂停；MCP 正常断开也会尝试清理本连接发起的输入，强制结束进程无法保证执行清理。
+观察编号 15 秒过期、输入后单次消耗。必须再次看图确认效果，`inputDelivered` 不等于业务完成。中断时尝试释放按键；释放未确认则禁止继续输入。强制结束所有进程无法保证完整清理。
 
-其他 MCP 客户端可用 `node agentmouse.mjs config mcp` 获取本地配置片段，再导入 `skills/`；原生模式的运行文件位于 `plugin/` 内。见[接入说明](adapters/README.zh.md)。同一客户端不要同时保留独立 MCP 注册和原生插件中的同一服务，避免重复。
+### 为什么不直接向后台 Chrome 发系统鼠标消息？
 
-## 开发与验证
+Chrome 在部分鼠标按下处理中会主动置前并激活窗口；仅仅不移动真实指针不能防止它这样做。软件因此阻止向非前台 Chromium 窗口发送这类消息，要求网页使用 Browser Bridge。桥接仍是鼠标输入，不是 `DOM.click()`。
+
+通用 Windows 消息的兼容性取决于应用；最小化/系统隐藏窗口、独立键盘、跨应用系统拖放不保证支持。触摸为实验功能，不会作为后台兜底。
+
+## 测试到了什么程度
+
+真实扩展链路已验证本地组件：左键、右键、滚轮、滑块、带转折路径的拼图式拖动、长按、双击、顺序点选、HTML5 拖放，以及拖动中暂停后释放。断言同时检查**页面状态和截图像素**，不是只看“发送成功”。
+
+这些是**本地交互验证，不是真实验证码服务验收**。真实站点还会检查设备、轨迹和风险信号，可能需要人完成。桌面不抢前台、客户端原生安装和无界面组件测试的证据分别记录在[验证说明](docs/compatibility.md)，失败结果也会保留。
+
+## 配置、备份与卸载
+
+运行目录默认 `%LOCALAPPDATA%\AgentMouse\0.6.0-beta.1`，会解析 Windows 打包应用重定向后的物理路径。浏览器配对目录 `~/.agentmouse/browser` 使用每用户密钥和仅监听本机的认证服务，密钥及私人浏览器资料不进仓库。
+
+安装保留其他配置并备份到运行目录 `backups/`。MCP 模式配置：Claude `~/.claude.json`、Codex `~/.codex/config.toml`、ZCode `~/.zcode/cli/config.json`、WorkBuddy `~/.workbuddy/mcp.json`、DSH `~/.dsh/profiles/<profile>/cordis.patch.yml`。原生升级只迁移 AgentMouse 自己的市场来源；原生命令失败明确报告可能完成的部分，仅 MCP 设置写入支持回滚。
+
+`npm ci --ignore-scripts` 后可用 `--dry-run` 预览；`--home` 用于隔离测试目录，`--install-dir` 指定运行目录。避免同时保留独立 MCP 和原生插件中的同一服务。卸载原生插件用宿主插件管理器；先停止桥接并移除 Chrome 扩展，再删除运行与配对目录。整体恢复备份会撤销备份之后的其他编辑。
+
+## 构建与验证
 
 ```powershell
 npm ci --ignore-scripts
 npm run build
 npm test
 npm run test:state
+node scripts/test-clients.mjs
 ```
 
-测试涵盖 MCP 校验、stdio 与官方 SDK、接入包重定位、五种智能体配置、备份、重复安装、预览、回滚、原生指针状态与坐标独立性。安装测试全部使用临时用户目录，不改真实配置；这些命令不执行桌面点击或音频播放。CI 在 Windows 的 Node 18 和 24 执行同一组检查。
+前四条不执行桌面输入；`test-clients` 检查已安装 Codex/ZCode 缓存和实际 MCP/SDK 状态链路，不冒充插件管理页视觉验收。CI 在 Node 18/24 跑安装和协议检查，并用固定版本 Chrome for Testing 跑真实扩展无界面组件测试，后者不等同于桌面验收。
 
-另有 `node scripts/test-clients.mjs`，检查**真正安装的 Codex、ZCode 客户端**及缓存插件，读取它们的 MCP 清单，验证九个工具和真实只读状态调用。要求本机已有两个客户端和插件，普通 CI 不会把它冒充为已完成。0.5.1 在 Codex CLI 0.153.4、ZCode CLI 0.17.1 上通过；插件页视觉显示和实际桌面动作仍是另外两项验收。
+`scripts/build-release.ps1` 构建完整 ZIP 与 SHA-256，`scripts/test-release.ps1` 验证解压安装。详见[接入资料](adapters/README.zh.md)和[兼容性记录](docs/compatibility.md)。
 
-交互式测试见[验证指南](docs/compatibility.md)。`powershell -File scripts/build-release.ps1` 会构建、测试并生成完整 Windows ZIP 与 SHA-256 文件；`scripts/test-release.ps1` 检查解压后的安装，`scripts/test-source.ps1` 检查首次源码安装的依赖下载与编译，两者都使用临时用户目录。版本标签会触发 GitHub 发布工作流。私人 profile、开发日志和截图不会进入仓库或发布包。
-
-## 许可证
-
-[Apache-2.0](LICENSE)。项目与上述智能体产品无隶属关系。
+[Apache-2.0](LICENSE)。与上述智能体或浏览器产品无隶属关系。

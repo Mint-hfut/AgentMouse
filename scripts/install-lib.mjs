@@ -105,8 +105,8 @@ async function destinationPath(path) {
   catch (error) { if (error.code === 'ENOENT') return path; throw error; }
 }
 export async function copyRuntime(sourceRoot, runtimeRoot) {
-  const files = ['LICENSE', 'mcp-server.mjs', 'agentmouse.mjs', 'plugin.json', 'mcp.json', '.mcp.json', 'scripts/build-native.mjs', 'dist/AgentMouse.exe', 'dist/AgentMouse.Cli.exe'];
-  for (const folder of ['skills', 'commands', 'assets', 'adapters', '.claude-plugin', '.codex-plugin', '.zcode-plugin']) for (const file of await filesUnder(join(sourceRoot, folder))) files.push(join(folder, file));
+  const files = ['LICENSE', 'mcp-server.mjs', 'agentmouse.mjs', 'browser-router.mjs', 'bridge-client.mjs', 'browser-pointer.mjs', 'bridge-server.mjs', 'scripts/browser-setup.mjs', 'scripts/bridge-daemon.mjs', 'plugin.json', 'mcp.json', '.mcp.json', 'scripts/build-native.mjs', 'dist/AgentMouse.exe', 'dist/AgentMouse.Cli.exe'];
+  for (const folder of ['skills', 'commands', 'assets', 'adapters', 'browser-extension', '.claude-plugin', '.codex-plugin', '.zcode-plugin']) for (const file of await filesUnder(join(sourceRoot, folder))) files.push(join(folder, file));
   for (const file of files) {
     const bytes = await readFile(join(sourceRoot, file)); const target = join(runtimeRoot, file);
     if (!(await optionalRead(target))?.equals(bytes)) await atomicWrite(target, bytes);

@@ -65,7 +65,7 @@ internal sealed class MainForm : Form {
         arm.BackColor=Color.FromArgb(25,103,221);arm.ForeColor=Color.White;
         arm.Click+=delegate{
             if(engine.Armed){engine.Pause("已手动暂停。");return;}
-            if(engine.Touch.Active){engine.Message="仍有触点未释放，请稍候；如持续出现，请退出并重开程序。";return;}
+            if(engine.Touch.Active||engine.MessageButtonHeld){engine.Message="仍有按键或触点未释放，请手动取消目标操作后重开控制器。";return;}
             engine.Armed=true;engine.Message="全桌面操作已启用。外部键鼠活动时，Agent 会等待。";
         };Controls.Add(arm);
         var practice=new Button{Text="打开练习窗口"};practice.SetBounds(265,278,170,44);practice.Click+=delegate{

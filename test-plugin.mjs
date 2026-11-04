@@ -30,9 +30,9 @@ assert.equal(dsh[0].insert[1].config.includeDefaultRoots,false);
 assert.match(hostConfig('codex',folder),/^\[mcp_servers\.agentmouse\]/);
 assert.throws(()=>hostConfig('unknown'));
 
-async function lifecycle(action,lateOpen=false){
+async function lifecycle(action,lateOpen=false,capture=false){
   const input=new PassThrough(),output=new PassThrough(),errors=new PassThrough(),calls=[];
-  const server=serve({input,output,errorOutput:errors,call:async request=>{calls.push(request.method);return {ok:true,result:{}};}});
+  const server=serve({input,output,errorOutput:errors,call:async request=>{calls.push(request.method);return {ok:true,result:request.method==='status'?{backgroundWindowCapture:true}:request.capture==='window'?{scope:'window',screenshot:{data:'iVBORw==',mimeType:'image/png',captureMethod:'Windows.Graphics.Capture'}}:{}};}});
   let id=0,buffer='';const waiting=new Map();
   output.on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf('\n'))>=0){const value=JSON.parse(buffer.slice(0,end));buffer=buffer.slice(end+1);waiting.get(value.id)?.(value);waiting.delete(value.id);}});
   function send(method,params){const current=++id;return new Promise(resolve=>{waiting.set(current,resolve);input.write(JSON.stringify({jsonrpc:'2.0',id:current,method,params})+'\n');});}
@@ -40,12 +40,14 @@ async function lifecycle(action,lateOpen=false){
   await send('tools/list');
   if(lateOpen){await server.release();const result=await send('tools/call',{name:'pointer_open',arguments:{}});assert.equal(result.result.isError,true);}
   if(action)await send('tools/call',{name:'pointer_move',arguments:{x:10,y:20}});
+  if(capture)await send('tools/call',{name:'pointer_observe',arguments:{capture:'window',windowId:'1234'}});
   input.end();await server.finished;
-  assert.deepEqual(calls,action?['move','pause']:[]);
+  assert.deepEqual(calls,action?['move','pause']:capture?['status','observe','release_capture']:[]);
 }
 await lifecycle(false);
 await lifecycle(true);
 await lifecycle(false,true);
+await lifecycle(false,false,true);
 
 // Verify the distributed CLI/server resolve their own root after relocation, including spaces and Unicode.
 const temp=await mkdtemp(join(tmpdir(),'computer-use plugin '));

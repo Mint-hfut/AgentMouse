@@ -1,42 +1,46 @@
 ---
 name: agentmouse
-description: Operate visible Windows desktop apps through AgentMouse MCP. Use for screenshot-guided clicking, scrolling and cross-app GUI tasks with this plugin; not for Android or ordinary file editing.
+description: Use AgentMouse MCP for background Windows/browser computer use without taking over the user mouse. Read real page/window images, click, hover, drag slider/puzzle paths and select points. Browser verification gestures require the paired Browser Bridge; not Android or file editing.
 ---
 
 # AgentMouse
 
-The controller runs locally on Windows x64 with .NET Framework 4.x and Node.js 18+. The host model must accept image inputs for screenshot-guided work. MCP is portable across hosts; the Windows controller is not a macOS/Linux controller.
+Discover the actual tool namespace from the host; do not invent one. The local controller requires Windows x64 and Node 18+. Native HWND capture requires Windows 10 1903+. Screenshot-guided tasks need an image-capable model.
 
-## Connect and operate
+## Connect and select the correct channel
 
-Discover the plugin's actual tool names from the host. Names may be prefixed, for example `mcp__agentmouse__pointer_observe`; do not invent a prefix.
+- `pointer_open` opens the controller; new instances start paused. The user enables whole-desktop input once in its window. MCP cannot arm it. There is no permanent application binding.
+- Inspect `pointer_status` and `pointer_list_windows`. For **web tasks**, choose a **`browser:`** tab entry and call `pointer_observe` with that ID and `capture="window"`. Browser Bridge uses real images and mouse input, without DOM selectors or injected clicks.
+- If no browser entry is present, inspect `node agentmouse.mjs browser-status` when the bundle path is available. Installation prepares `~/.agentmouse/browser/extension`; the user must load that generated extension and review Chrome's permission once. `browser-setup` prepares files only. Do not bypass browser/enterprise policy or silently change user profiles.
+- Do not substitute native inactive Chrome mouse messages: Chromium can activate/raise its window. This route is blocked. Never activate, raise, restore or temporarily bring an app to the front to satisfy a background task.
+- Native `capture="window"` reads a covered HWND through Windows Graphics Capture. Default `capture="desktop"` reads the visible desktop; native `windowId` then only crops it. Do not mistake a screen crop for a real background image.
 
-- `pointer_open` opens the controller if necessary. A new instance is paused. `pointer_status` reports `armed`, `scope`, the backend and limitations. If paused, the user enables **whole-desktop** input once in the controller. There is no application binding and no `pointer_select_window` tool.
-- `pointer_observe` defaults to the entire visible desktop. Optional `windowId` only crops the screenshot; it never restricts later input. Match the intended app and control in the actual visible image before acting.
-- `pointer_click` and `pointer_scroll` route by screen location to the visible window underneath. Use a fresh `observationId` after each action. An observation expires after 15 seconds; reobserve after layout, occlusion or window changes.
-- `pointer_move` moves only the orange AGENT overlay. It does not produce native mouse hover.
+## Coordinates and gestures
 
-All action coordinates are **physical screen pixels**, including negative monitor coordinates. Preview images may be resized. Convert an image point using the returned metadata:
+Follow `coordinateSpace`. Browser images use viewport CSS pixels, native images use physical desktop pixels. Convert an image point using:
 
 ```text
-screenX = screenshot.x + imageX * screenshot.scaleX
-screenY = screenshot.y + imageY * screenshot.scaleY
+x = screenshot.x + imageX * screenshot.scaleX
+y = screenshot.y + imageY * screenshot.scaleY
 ```
 
-Round to integers. Do not pass raw preview-image coordinates as desktop coordinates when the scale or origin differs.
+Round to integers. A fresh `observationId` is single-use and expires after 15 seconds. Reobserve after layout changes, errors or input; do not automatically retry an action with an unknown outcome.
 
-## Verify effects
+- `pointer_click`: left/right; `clickCount=2` double-click or `holdMs` long press, not both.
+- `pointer_drag`: press/move/release within a window/page. `path` contains optional intermediate coordinate points; `durationMs` is bounded. Browser HTML5 drags are intercepted so they do not enter an OS drag loop.
+- `pointer_scroll`: browser wheel. Native covered-window wheels are rejected because apps may drop/re-route them using the foreground hit-test; use captured scrollbar/page buttons there.
+- `pointer_move`: without an observation, only moves the Agent overlay. With a browser observation, moves/hovers the browser virtual pointer. Native persistent hover is unsupported.
 
-`inputDelivered=true` means input submission, not task completion. Reobserve and verify the requested effect: changed UI state, the expected document position, player title/state, or another task-specific result. A timeout or interruption can occur after partial effects; inspect before deciding whether a retry is appropriate.
+## Verify outcomes
 
-Default to the background-message backend. Touch is experimental and may move the real pointer or activate a window; `pointer_drag` is a touch gesture, not a fully independent mouse drag. Report unavailable capabilities rather than describing them as verified.
+`inputDelivered=true` is not task success. Confirm the expected page/control state in a new image. Repeated/unchanged frames may mean a static view or an app that stopped repainting; never call them proof of a changed state. The service checks capture source/geometry and refuses a missing background image or a desktop-crop fallback.
 
-The service currently has no keyboard/text-entry tool. If the task needs text input, use an available host capability within the user's task scope, and distinguish that assistance from this mouse service. The same applies to launching a target application: `pointer_open` launches the controller, not an arbitrary app.
+Local slider, puzzle-style drag, point-selection and mouse-event fixture tests do **not** guarantee any third-party CAPTCHA provider accepts automation. Device/behavior/risk checks are separate. Do not promise universal verification success or add stealth/evasion behavior; hand back to the user when a real site requires a person.
 
-## Finish or stop
+There is no independent keyboard tool. Do not use foreground keyboard/mouse injection as a hidden fallback while the user is working elsewhere. Explain missing capabilities. Touch is experimental, can affect real cursor/focus, and is never a covered-window fallback.
 
-After submitting desktop input or moving this plugin's overlay, call `pointer_pause` when that desktop task is completed or interrupted. Also pause whenever the user explicitly asks to stop. Read-only discovery/status checks need not pause a different ongoing controller. Pause disables input and hides the AGENT overlay; it need not terminate the controller window.
+## Finish and stop
 
-A graceful MCP disconnect also attempts to pause after this connection has submitted pointer actions. Hosts may keep MCP connections alive between tasks, so explicitly pause at task end. Forced process termination is not a guaranteed cleanup mechanism. Use one controlling agent session at a time; concurrent input ownership is not implemented.
+Call `pointer_pause` after this task's input or capture work, on interruption, and whenever the user asks to stop. It releases held buttons/captures and hides the overlay. Status/list-only probes need not pause someone else's work. Focus/z-order interference and an unconfirmed release must stop further input; inspect before continuing.
 
-For setup, status, stopping and diagnostics, the bundle also includes `agentmouse-start`, `agentmouse-status`, `agentmouse-stop`, and `agentmouse-doctor` skills plus the `agentmouse.mjs` CLI.
+Use one paired browser profile and one controlling agent session at a time. Graceful disconnect and browser watchdogs attempt cleanup; forced termination of all processes is not a guaranteed release mechanism. The bundle also provides start/status/stop/doctor skills and the `agentmouse.mjs` CLI.

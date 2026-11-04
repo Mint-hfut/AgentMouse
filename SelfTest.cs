@@ -5,10 +5,69 @@ using System.Drawing;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace AgentPointer {
 internal static class SelfTest {
+    internal static int ProbeBackgroundCapture(string processName,string directory,string title=""){
+        var candidates=Engine.Windows(IntPtr.Zero).FindAll(w=>string.Equals(w.ProcessName,processName,StringComparison.OrdinalIgnoreCase)&&(title==""||w.Name.Contains(title)));
+        if(candidates.Count==0)throw new Exception("No visible, non-minimized window for process "+processName);
+        candidates.Sort(delegate(WindowItem a,WindowItem b){Native.Rect x,y;Native.GetWindowRect(a.Handle,out x);Native.GetWindowRect(b.Handle,out y);return ((long)y.Width*y.Height).CompareTo((long)x.Width*x.Height);});
+        var target=candidates[0];IntPtr foreground=Native.GetForegroundWindow();Native.Point before,after;Native.GetCursorPos(out before);
+        var engine=new Engine();var response=Obj(engine.Dispatch(new Dictionary<string,object>{{"method","observe"},{"windowId",target.Handle.ToInt64().ToString()},{"capture","window"}}));
+        var picture=Obj(response["screenshot"]);Directory.CreateDirectory(directory);
+        File.WriteAllBytes(Path.Combine(directory,"background-window.png"),Convert.FromBase64String((string)picture["data"]));picture.Remove("data");
+        Native.GetCursorPos(out after);Native.Rect bounds;Native.GetWindowRect(target.Handle,out bounds);
+        var center=new Native.Point(bounds.Left+bounds.Width/2,bounds.Top+bounds.Height/2);IntPtr over=Native.WindowFromPoint(center);IntPtr overRoot=Native.GetAncestor(over,2);
+        Native.Rect frontBounds;Native.GetWindowRect(foreground,out frontBounds);
+        var report=new{process=processName,windowId=target.Handle.ToInt64().ToString(),capture=picture,background=foreground!=target.Handle,centerCovered=overRoot!=target.Handle,fullyCoveredByForeground=frontBounds.Left<=bounds.Left&&frontBounds.Top<=bounds.Top&&frontBounds.Right>=bounds.Right&&frontBounds.Bottom>=bounds.Bottom,foregroundUnchanged=Native.GetForegroundWindow()==foreground,cursorUnchanged=before.X==after.X&&before.Y==after.Y,inputSubmitted=false};
+        File.WriteAllText(Path.Combine(directory,"background-window.json"),Json.Write(report),new System.Text.UTF8Encoding(false));Console.WriteLine(Json.Write(report));return 0;
+    }
+    internal static int ForegroundState(){
+        var handle=Native.GetForegroundWindow();Native.Rect bounds;Native.GetWindowRect(handle,out bounds);Native.Point pointer;Native.GetCursorPos(out pointer);
+        uint pid;Native.GetWindowThreadProcessId(handle,out pid);string process="";try{process=Process.GetProcessById((int)pid).ProcessName;}catch(ArgumentException){}
+        Console.WriteLine(Json.Write(new{windowId=handle.ToInt64().ToString(),process=process,dpiScale=Native.GetDpiForWindow(handle)/96.0,bounds=new{x=bounds.Left,y=bounds.Top,width=bounds.Width,height=bounds.Height},pointer=new{x=pointer.X,y=pointer.Y}}));return 0;
+    }
+    internal static int ImagePoint(string path,string rgb){
+        var pieces=rgb.Split(',');var color=Color.FromArgb(int.Parse(pieces[0]),int.Parse(pieces[1]),int.Parse(pieces[2]));long best=0;object result=null;
+        // Find the largest connected fixture region; color management can shift its RGB values.
+        using(var image=new Bitmap(path)){
+            int width=image.Width,height=image.Height;var mask=new bool[width*height];
+            for(int y=0;y<height;y++)for(int x=0;x<width;x++){var pixel=image.GetPixel(x,y);mask[y*width+x]=Math.Abs(pixel.R-color.R)<=48&&Math.Abs(pixel.G-color.G)<=48&&Math.Abs(pixel.B-color.B)<=48;}
+            var queue=new Queue<int>();
+            for(int start=0;start<mask.Length;start++){
+                if(!mask[start])continue;queue.Enqueue(start);mask[start]=false;long sumX=0,sumY=0,count=0;int minX=width,minY=height,maxX=0,maxY=0;
+                while(queue.Count>0){int index=queue.Dequeue(),x=index%width,y=index/width;sumX+=x;sumY+=y;count++;minX=Math.Min(minX,x);minY=Math.Min(minY,y);maxX=Math.Max(maxX,x);maxY=Math.Max(maxY,y);
+                    foreach(int next in new[]{x>0?index-1:-1,x+1<width?index+1:-1,y>0?index-width:-1,y+1<height?index+width:-1})if(next>=0&&mask[next]){mask[next]=false;queue.Enqueue(next);}
+                }
+                if(count>best){best=count;result=new{x=(double)sumX/count,y=(double)sumY/count,pixels=count,minX=minX,minY=minY,maxX=maxX,maxY=maxY};}
+            }
+        }
+        Assert(best>100,"Expected fixture color was not found in the captured background image");Console.WriteLine(Json.Write(result));return 0;
+    }
+    internal static int BackgroundFixtureServer(string title,string pipe){
+        if(!title.StartsWith("APCOMPAT-background-",StringComparison.Ordinal)||!pipe.StartsWith("agentmouse-background-",StringComparison.Ordinal))throw new Exception("Only an isolated background fixture is accepted");
+        var targets=Engine.Windows(IntPtr.Zero).FindAll(w=>w.ProcessName=="chrome"&&w.Name.StartsWith(title,StringComparison.Ordinal));
+        Assert(targets.Count==1,"Expected one owned Chrome fixture window");
+        Assert(Native.SetWindowPos(targets[0].Handle,new IntPtr(1),0,0,0,0,0x13),"Could not lower the owned fixture without activation");
+        var engine=new Engine{Armed=true,FixtureWindow=targets[0].Handle};using(var server=new Transport(engine,pipe)){
+            using(var sink=new FixtureInputSink(engine))using(var timer=new System.Windows.Forms.Timer()){
+                IntPtr handle=sink.Handle;var context=new ApplicationContext();
+                var devices=new[]{new Native.RawDevice{page=1,usage=2,flags=0x100,target=handle},new Native.RawDevice{page=1,usage=6,flags=0x100,target=handle}};
+                Assert(Native.RegisterRawInputDevices(devices,2,(uint)Marshal.SizeOf(typeof(Native.RawDevice))),"Raw input monitoring failed");
+                long start=InputTracker.Now;timer.Interval=33;timer.Tick+=delegate{Native.Point point;if(Native.GetCursorPos(out point))engine.Human.TrackPointer(point);if(InputTracker.Milliseconds(start)>60000)context.ExitThread();};timer.Start();
+                server.Start();Console.WriteLine(Json.Write(new{windowId=targets[0].Handle.ToInt64().ToString(),pipe=pipe}));
+                Task.Run(()=>Console.ReadLine()).ContinueWith(done=>{try{sink.BeginInvoke((Action)delegate{context.ExitThread();});}catch(InvalidOperationException){}});
+                Application.Run(context);timer.Stop();
+            }
+        }return 0;
+    }
+    private sealed class FixtureInputSink : Form {
+        private readonly Engine engine;
+        internal FixtureInputSink(Engine value){engine=value;ShowInTaskbar=false;}
+        protected override void WndProc(ref System.Windows.Forms.Message message){if(message.Msg==0xff)engine.Human.Read(message.LParam);base.WndProc(ref message);}
+    }
     internal static int StateOnly(){
         var e=new Engine();
         Assert(!e.ShowPointer,"Paused startup must hide the overlay");
@@ -22,6 +81,9 @@ internal static class SelfTest {
         Assert(e.Human.Sequence==1,"Human pointer motion must be detected");
         Assert(IntPtr.Size==8&&Marshal.SizeOf(typeof(Native.PointerInfo))==96&&Marshal.SizeOf(typeof(Native.TouchInfo))==144,"Native x64 structure layout");
         Expect("invalid_json",()=>Json.Read("null"));Expect("invalid_json",()=>Json.Read("{"));
+        Expect("invalid_argument",()=>e.Dispatch(Json.Read("{\"method\":\"observe\",\"capture\":\"window\"}")));
+        Expect("invalid_argument",()=>e.Dispatch(Json.Read("{\"method\":\"observe\",\"capture\":\"window\",\"windowId\":\"123\",\"screenshot\":false}")));
+        Expect("invalid_argument",()=>e.Dispatch(Json.Read("{\"method\":\"observe\",\"capture\":\"invalid\"}")));
         Expect("invalid_argument",()=>e.Dispatch(Json.Read("{\"method\":\"move\",\"x\":1.5,\"y\":1}")));
         Expect("offscreen",()=>e.Dispatch(Json.Read("{\"method\":\"move\",\"x\":-100000,\"y\":-100000}")));
         Expect("paused",()=>e.Dispatch(Json.Read("{\"method\":\"click\",\"x\":0,\"y\":0}")));

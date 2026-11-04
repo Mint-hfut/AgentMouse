@@ -1,22 +1,20 @@
 # AgentMouse
 
-**Background computer use for AI agents on Windows — an independent Agent pointer that leaves your mouse to you.**
+**Background computer use for AI agents on Windows, with a pointer independent of your real mouse.**
 
-[中文说明](README.zh.md) · [Compatibility](docs/compatibility.md) · [Issues](https://github.com/Mint-hfut/AgentMouse/issues)
+[中文](README.zh.md) · [Compatibility and evidence](docs/compatibility.md) · [Releases](https://github.com/Mint-hfut/AgentMouse/releases)
 
-AgentMouse gives MCP-capable agents desktop screenshots, clicking and scrolling across your current Windows desktop. Its orange **AGENT** pointer has its own coordinates: moving your real mouse does not move the Agent pointer. The default background mode sends window messages without moving the system cursor or requesting foreground activation.
+Keep working while your agent observes and operates another app. AgentMouse combines a Windows controller, MCP server, reusable Agent Skills and installers for **Claude Code, Codex, ZCode, WorkBuddy and DSH**. No virtual machine or split screen.
 
-No virtual machine, split screen or driver installation. MCP tools, Agent Skills and lifecycle commands share one local controller. The installer supports **Claude Code, Codex, ZCode, WorkBuddy and DSH**.
+For web tasks, **Browser Bridge** reads real tab images and sends coordinate-based mouse input through Chrome's debugger API. It uses your existing browser/profile and does not rely on DOM selectors, injected clicks or per-site scripts. Native Windows capture/messages remain available for desktop apps.
 
-**Status: experimental, Windows x64 only.** Background input compatibility depends on the application. This is not a second Windows input seat: applications can still change focus, and touch mode may move the real cursor. It operates visible on-screen windows, not arbitrary hidden or minimized apps. See [tested scope and limitations](docs/compatibility.md).
+**Beta:** real browser-extension gesture integration passes in headless Chrome for Testing. Final acceptance with a foreground user window is still pending because the interactive desktop became unavailable. This is not a universal app-compatibility or CAPTCHA-solving guarantee.
 
 ## Install
 
-Requires Windows x64, Node.js **18+ x64** with npm, and Windows .NET Framework 4.x. A vision-capable host model is needed to interpret screenshots. Administrator rights are normally unnecessary.
+Requires Windows x64, Node.js **18+ x64** with npm and .NET Framework. Native covered-window capture requires Windows 10 1903+.
 
-Download a complete Windows ZIP from [Releases](https://github.com/Mint-hfut/AgentMouse/releases) when available, extract it, and double-click **`install.cmd`**. Select one or more agents from the menu. The release includes native binaries and installer dependencies; Node.js is still required.
-
-From source:
+Extract the [Windows release ZIP](https://github.com/Mint-hfut/AgentMouse/releases), double-click **`install.cmd`**, and select your agents. From source:
 
 ```powershell
 git clone https://github.com/Mint-hfut/AgentMouse.git
@@ -24,109 +22,92 @@ cd AgentMouse
 .\install.cmd
 ```
 
-The source installer downloads locked npm dependencies without running package lifecycle scripts and compiles the controller using Windows' .NET Framework compiler. No Visual Studio or .NET SDK is required.
-
-**Since 0.5.1, selecting Codex or ZCode installs a native plugin**, not just a standalone MCP entry. Codex needs its CLI (`npm install -g @openai/codex` if missing); ZCode uses its bundled plugin CLI, detected in the standard Windows install locations or PATH. Installation fails explicitly if the native CLI cannot be found. Claude Code, WorkBuddy and DSH currently use MCP + skills registration, which does not create a plugin card in their plugin browser.
-
-To skip the menu:
+The source installer installs locked dependencies without lifecycle scripts and compiles native files with Windows' .NET Framework compiler. No Visual Studio/.NET SDK is required. Codex native installation needs its CLI; ZCode uses its bundled plugin CLI in standard install locations or PATH.
 
 ```powershell
-.\install.cmd --agent codex
-.\install.cmd --agent claude-code,codex,dsh
+.\install.cmd --agent codex,zcode
 .\install.cmd --agent all
 .\install.cmd --agent dsh --profile web
 .\install.cmd --agent codex --mode mcp
+.\install.cmd --agent codex --browser none
 ```
 
-Refresh the plugin browser or restart the selected agents afterward. Codex and ZCode should list **agentmouse@agentmouse** as installed/enabled. The installer verifies the native client's installed-plugin response before reporting success. `--mode mcp` explicitly chooses standalone MCP + skills and does **not** create a plugin card. Ask your agent: **“Use AgentMouse to open its controller and check its status.”** Click **允许全桌面操作** (Allow desktop input) once in the controller, then give the task. The controller UI is currently Chinese.
+Codex/ZCode default to **native plugin installation**, verified through their installed-plugin lists. Claude Code, WorkBuddy and DSH currently receive **MCP + skills**, which does not create a plugin card. `--mode mcp` selects that mode explicitly. `--browser none` skips browser-file preparation.
 
-## Installation details
+Refresh/restart the selected agents after installation. The native plugin is **`agentmouse@agentmouse`**.
 
-The persistent runtime defaults to `%LOCALAPPDATA%\AgentMouse\0.5.1`. Windows packaged hosts may redirect this location; the installer resolves the physical path so other agents can read it. Native mode creates a clean `plugin/` payload and marketplace catalogs, then uses each host's native marketplace/install commands. Backups stay outside that payload. Deleting the download/source folder afterward is safe. Node.js must remain installed.
+### Connect your existing Chrome once
 
-The following table describes **MCP-only mode** (the default for Claude Code, WorkBuddy and DSH; use `--mode mcp` for Codex/ZCode):
+The installer prepares a paired extension directory and prints its path, normally `~/.agentmouse/browser/extension`. It does **not** change Chrome settings, profiles or enterprise policies.
 
-| Agent | User MCP configuration | Skills location |
-|---|---|---|
-| Claude Code | `~/.claude.json` → `mcpServers.agentmouse` | `~/.claude/skills/agentmouse*` |
-| Codex | `~/.codex/config.toml` → `mcp_servers.agentmouse` | `~/.agents/skills/agentmouse*` |
-| ZCode | `~/.zcode/cli/config.json` → `mcp.servers.agentmouse` | `~/.zcode/skills/agentmouse*` |
-| WorkBuddy | `~/.workbuddy/mcp.json` → `mcpServers.agentmouse` | `~/.codebuddy/skills/agentmouse*` (compatible user skills) |
-| DSH | `~/.dsh/profiles/<profile>/cordis.patch.yml` → managed MCP client | `~/.dsh/skills/agentmouse*` |
+1. In Chrome, open `chrome://extensions`, enable Developer mode and choose **Load unpacked** yourself.
+2. Select the **generated directory printed by the installer**, not the unpaired source folder.
+3. Review the debugger permission. It provides page images and mouse input. No remote debugging port, new browser profile or disabled GPU is needed for normal use.
+4. Ask your agent to open AgentMouse, enable desktop input once in its local controller, then select a **`browser:`** entry from the window list for web work.
 
-`~` means your user home. Codex skills use the shared Agent Skills directory and may also be discovered by other compatible hosts. MCP registration is added only to selected agents. Commands are copied for Claude Code, ZCode and WorkBuddy; every host receives equivalent lifecycle skills. DSH defaults to `web` and needs its own existing model/provider configuration.
-
-Unrelated settings are retained. Changed files are backed up under the runtime's `backups/`, with an `index.json` mapping. Repeating an installation makes no duplicate entries. In MCP-only mode, malformed configurations fail before settings are written and write failures roll back applied changes. Native mode backs up the client's configuration/registries, uses its own installer, and reports any partial failure; it does not claim transactional rollback of native client operations. An existing unmanaged AgentMouse TOML entry is left alone in MCP-only mode. Close settings editors during installation.
-
-Preview without writing settings or runtime files:
+If enterprise policy blocks this, stop and consult your administrator. The installer does not bypass it. Browser preparation can also be run separately:
 
 ```powershell
-npm ci --ignore-scripts
-.\install.cmd --agent all --dry-run
+node agentmouse.mjs browser-setup
+node agentmouse.mjs browser-status
+node agentmouse.mjs browser-stop
 ```
 
-Advanced: `--home <directory>` selects an alternate home and ignores host-specific environment overrides. `--install-dir <directory>` selects the runtime directory. Normal installation respects `CODEX_HOME`, `CLAUDE_CONFIG_DIR` (skills/commands), and `DSH_HOME`.
+The controller UI is currently Chinese. Chrome may display its standard debugging indicator. Use one paired browser profile and one controlling agent at a time.
 
-For a native plugin, uninstall through the host's plugin manager (`codex plugin remove agentmouse@agentmouse`, or ZCode's installed-plugin page). For MCP-only mode, stop AgentMouse, remove only its `agentmouse` MCP entry (DSH: `agentmouse-mcp` inserted plugin), and delete the five project skill folders and AgentMouse command folder. Delete the runtime last. Restoring a complete backup also reverts unrelated settings edited after that backup. If migrating from 0.5.0, remove its standalone MCP registration to avoid duplicate tools alongside the native plugin.
+## Mouse and capture capabilities
 
-## Use from any MCP agent
-
-For another MCP host, configure this stdio server using absolute paths:
-
-```json
-{
-  "mcpServers": {
-    "agentmouse": {
-      "command": "C:\\Program Files\\nodejs\\node.exe",
-      "args": ["C:\\path\\to\\AgentMouse\\mcp-server.mjs"]
-    }
-  }
-}
-```
-
-Point it at the built source directory or installed runtime (`plugin/` in native mode). `node agentmouse.mjs config <host>` generates a local configuration fragment. Install `skills/` using that host's Agent Skills mechanism. See [adapter details and references](adapters/README.zh.md). Avoid keeping a standalone MCP registration alongside the native plugin's MCP service.
-
-The repository now includes marketplace catalogs for direct native plugin distribution. When a Git-backed plugin is installed from source without binaries, its first controller call builds the native files locally using Windows' compiler; build messages go to stderr, preserving MCP stdio framing.
-
-| MCP tool | Purpose |
+| Tool | Behavior |
 |---|---|
-| `pointer_open` | Open the controller; a new instance starts paused |
-| `pointer_status` | Inspect backend, pointer coordinates and limitations |
-| `pointer_list_windows` | List visible windows |
-| `pointer_observe` | Screenshot the desktop; optional window crop |
-| `pointer_move` | Move only the Agent overlay |
-| `pointer_click` | Left/right background click at screen coordinates |
-| `pointer_scroll` | Scroll at screen coordinates |
-| `pointer_drag` | Experimental touch gesture; may affect real cursor/focus |
-| `pointer_pause` | Disable input and hide the Agent pointer |
+| `pointer_open` | Open the local controller; a new instance starts paused |
+| `pointer_status` | Controller/capture capabilities and browser pairing status |
+| `pointer_list_windows` | Native windows plus connected `browser:` tabs |
+| `pointer_observe` | Desktop image, native window surface, or real browser viewport image |
+| `pointer_move` | Overlay only by default; with a browser observation, move/hover its virtual pointer |
+| `pointer_click` | Left/right click; `clickCount=2` double click or `holdMs` long press |
+| `pointer_drag` | Press/move/release with optional intermediate `path` and bounded duration |
+| `pointer_scroll` | Browser wheel; native covered-window wheels are rejected, use scrollbar clicks |
+| `pointer_pause` | Stop input, release held buttons/captures and hide the overlay |
 
-There is **no target-window binding**. One enable covers the current desktop. `windowId` only crops a screenshot. Coordinates are physical desktop pixels, including negative monitor origins; images return scaling metadata. Click, scroll and drag need a fresh, single-use `observationId` valid for 15 seconds.
+There is no permanent target binding. `capture="desktop"` uses visible screen-position routing; native `windowId` then only crops the screen. `capture="window"` addresses one HWND or `browser:` tab for that single-use observation. Reobserve another target to switch apps/tabs.
 
-AgentMouse waits while you use the keyboard or mouse and cancels conflicting input where detected. This reduces interference; it does not provide simultaneous independent keyboard/focus sessions. `inputDelivered` confirms submission, not success: agents must observe again to verify the effect. Independent native hover, background drag and keyboard input are not implemented.
+**Follow the returned coordinate space:** native captures use physical desktop pixels; browser images use viewport CSS pixels. Both return image origin and scaling metadata:
 
-Stop with the controller button, its displayed global pause shortcut (normally **Ctrl+Alt+P**), `pointer_pause`, or:
-
-```powershell
-node agentmouse.mjs stop
+```text
+x = screenshot.x + imageX * screenshot.scaleX
+y = screenshot.y + imageY * screenshot.scaleY
 ```
 
-Pause hides the overlay; closing the controller exits it. Skills instruct agents to pause at task end. Graceful MCP disconnect attempts cleanup after submitting input; forced process termination does not guarantee cleanup.
+Observations expire after 15 seconds and are consumed by input. Verify the actual image/state afterward; `inputDelivered` is not business success. Cancellation/failure releases buttons where the channel remains available; an unconfirmed release blocks more input. Forced termination cannot guarantee all cleanup.
 
-## Build and test
+Native messages cannot guarantee inactive Chromium windows remain behind: Chrome can activate itself during mouse presses. Those inputs are blocked and require Browser Bridge. Native app compatibility still varies; minimized/cloaked windows, independent keyboard input and cross-app system drag-and-drop are not promised. Touch is experimental and never a background fallback.
+
+## Tested scope
+
+The real extension path has passed local HTML checks for left/right clicks, wheel, native range slider, curved puzzle-style drag, long press, double click, ordered point selection, HTML5 drag/drop, and release after mid-drag pause. Assertions check page state **and captured pixels**. These are local interaction checks, **not third-party CAPTCHA acceptance**; server risk checks can still require a person.
+
+Desktop non-interference, actual-client native loading and component tests are separate evidence categories. [The validation record](docs/compatibility.md) preserves failures and pending checks.
+
+## Configuration and removal
+
+Runtime: `%LOCALAPPDATA%\AgentMouse\0.6.0-beta.1` (physical path resolved for packaged Windows hosts). Browser pairing: `~/.agentmouse/browser`, with a per-user local token and authenticated loopback-only service. Generated secrets/private profiles stay outside the repo. Existing settings are retained with backups under the runtime's `backups/`.
+
+MCP-only paths: Claude `~/.claude.json`, Codex `~/.codex/config.toml`, ZCode `~/.zcode/cli/config.json`, WorkBuddy `~/.workbuddy/mcp.json`, DSH `~/.dsh/profiles/<profile>/cordis.patch.yml`. Codex native upgrades relocate only AgentMouse's own marketplace when the versioned source changes. Native installer failures report possible partial completion; MCP-only settings writes support rollback.
+
+Use `--dry-run` to preview after `npm ci --ignore-scripts`. `--home` isolates a home for testing; `--install-dir` selects the runtime. Do not retain a standalone MCP registration alongside the native plugin's same server. Remove native plugins in the host plugin manager; stop the browser bridge and remove its extension before deleting runtime/pairing files. Restoring whole backups also reverts later unrelated edits.
+
+## Build and validation
 
 ```powershell
 npm ci --ignore-scripts
 npm run build
 npm test
 npm run test:state
+node scripts/test-clients.mjs
 ```
 
-Checks cover MCP validation, actual stdio transport with the official SDK, adapter relocation, five installer layouts in temporary homes, settings preservation, backups, repeat installation, dry run, rollback, and native state/coordinate independence. They do not start GUI actions or audio playback. CI runs these checks on Windows with Node 18 and 24.
+The first four commands do not perform desktop input. `test-clients` reads installed Codex/ZCode payloads and checks their declared server/SDK path; it is not a GUI plugin-browser test. CI runs Node 18/24, isolated installer checks and a real extension/component test with pinned Chrome for Testing. The latter is headless and does not claim desktop non-interference.
 
-`node scripts/test-clients.mjs` separately checks **actually installed Codex and ZCode clients**, their cached plugin payloads, MCP manifests, all nine tools and a real read-only `pointer_status` round-trip. It requires both native clients and installed AgentMouse plugins; normal CI does not pretend these clients are present. The local 0.5.1 check passed with Codex CLI 0.153.4 and ZCode CLI 0.17.1. This is not a visual plugin-browser or desktop-action acceptance test.
+`scripts/build-release.ps1` builds a complete ZIP and SHA-256 file; `scripts/test-release.ps1` verifies its extracted MCP installation. See [adapter references](adapters/README.zh.md) and [interactive test instructions](docs/compatibility.md).
 
-See [the validation guide](docs/compatibility.md) for optional interactive tests. `powershell -File scripts/build-release.ps1` builds and tests a complete Windows ZIP with native binaries, bundled installer dependencies and a SHA-256 file. `powershell -File scripts/test-release.ps1` checks the extracted ZIP installation; `scripts/test-source.ps1` checks first-time source installation with dependency download and compilation. Both use temporary homes. Version tags trigger the GitHub release workflow. Private profiles, local reports and screenshots are excluded from Git and releases.
-
-## License
-
-[Apache-2.0](LICENSE). This project is not affiliated with the supported agent products.
+[Apache-2.0](LICENSE). Not affiliated with the supported agent/browser products.

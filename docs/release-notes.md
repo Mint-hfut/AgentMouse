@@ -1,16 +1,13 @@
-AgentMouse 0.5.1 fixes native plugin installation for Codex and ZCode. Version 0.5.0 registered standalone MCP and skills but did not create an installed-plugin entry.
+AgentMouse 0.6.0-beta.1 — real background images and browser mouse gestures.
 
-- Codex/ZCode now use their native marketplace/install commands and verify the installed/enabled result. Missing native CLIs fail explicitly.
-- Claude Code, WorkBuddy and DSH use MCP + skills; `--mode mcp` explicitly selects that mode for any target.
-- Marketplace catalogs, clean plugin payloads, configuration backups and physical Windows path resolution.
-- Real Codex 0.153.4 / ZCode 0.17.1 installation and read-only MCP connectivity checked locally. GUI actions/browser visibility were not accepted.
-- MCP server, five Agent Skills, lifecycle commands and native plugin manifests.
-- Preserves existing settings, makes backups, supports dry runs and rolls back failed settings writes.
-- English/Chinese READMEs and documented compatibility limits.
-- Windows build, MCP/SDK tests, installer tests and native state checks.
+- Browser Bridge uses your existing Chrome/profile, actual rendered images and coordinate input through `chrome.debugger`. No DOM selectors, injected clicks, remote debugging port or disabled GPU is needed in normal use.
+- Supports click/right-click, wheel, double-click, long press, slider/puzzle paths, HTML5 drop and cancellation/release. Real extension integration passes on local fixtures in headless Chrome for Testing 157.
+- Windows Graphics Capture reads covered native window surfaces. Native Chromium mouse input is blocked when inactive because it can activate/raise the window.
+- Agent installers prepare a paired extension directory. You load it manually once and review Chrome permissions; no policy bypass or profile change.
+- Preserves native Codex/ZCode plugin installation and other MCP + skills adapters, with backups and isolated installation tests.
 
-Extract the Windows ZIP, install Node.js 18+ x64 if needed, then double-click `install.cmd`. Choose your agent and restart it. Enable desktop input once in the local controller before use.
+**Beta limit:** the interactive desktop became unavailable, so final acceptance with the user's foreground window has not been completed. Headless fixture success is not a desktop pass or a promise that real CAPTCHA risk checks accept automation. Test results and failed native approaches are documented.
 
-Experimental: background messages depend on app compatibility; visible windows only, no independent keyboard/native hover/background drag. Touch may move the real cursor or change focus. Five-host configuration testing does not imply five-host GUI acceptance.
+Extract the ZIP, double-click `install.cmd`, select agents, then load the printed generated Chrome extension directory. Refresh/restart agent clients, open AgentMouse and enable input once before actions. Requires Windows x64 and Node 18+; native HWND capture requires Windows 10 1903+.
 
-中文：解压 Windows ZIP 后双击 `install.cmd`，选择要接入的智能体。需要 Node.js 18+ x64。默认后台模式不移动真实鼠标；触摸为实验模式，可能影响真实鼠标和焦点。详见中文 README。
+中文：新版加入真实后台画面与浏览器鼠标通道。真实扩展链路已通过本地滑块、拼图式路径拖动、顺序点选、长按、双击、HTML5 拖放和中断释放测试。仍需用户加载扩展一次；不修改原 Chrome 资料或绕过策略。桌面恢复后的前台保持验收尚未完成，不能把组件通过宣传为所有真实验证码必过。

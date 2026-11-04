@@ -9,7 +9,7 @@ export function buildNative(root = dirname(dirname(fileURLToPath(import.meta.url
   if (!existsSync(compiler)) throw new Error('Windows .NET Framework 4.x compiler is missing.');
   mkdirSync(join(root, 'dist'), { recursive: true });
   const common = ['/nologo', '/utf8output', '/codepage:65001', '/platform:x64', '/optimize+', ...['System', 'System.Core', 'System.Drawing', 'System.Windows.Forms', 'System.Web.Extensions'].map(name => '/r:' + name + '.dll')];
-  const sources = ['Native.cs', 'Core.cs', 'Transport.cs', 'Ui.cs', 'Program.cs', 'SelfTest.cs'].map(file => join(root, file));
+  const sources = ['Native.cs','WindowCapture.cs', 'Core.cs', 'Transport.cs', 'Ui.cs', 'Program.cs', 'SelfTest.cs'].map(file => join(root, file));
   for (const cli of [false, true]) execFileSync(compiler, [...common, '/target:' + (cli ? 'exe' : 'winexe'), ...(cli ? ['/define:CLI'] : []), '/out:' + join(root, 'dist', cli ? 'AgentMouse.Cli.exe' : 'AgentMouse.exe'), ...sources], { stdio, windowsHide: true });
 }
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) buildNative();

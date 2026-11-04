@@ -22,10 +22,17 @@ jobs:
         run: ./scripts/build-release.ps1
       - name: Verify packaged installation
         run: ./scripts/test-release.ps1
+      - name: Verify real browser-extension gesture path
+        run: |
+          $env:AGENTMOUSE_CHROME = ./scripts/get-test-chrome.ps1
+          node scripts/test-background-chrome.mjs --headless-test --extension-bridge-test
+          if ($LASTEXITCODE -ne 0) { throw 'Browser-extension component tests failed.' }
       - name: Publish ZIP and checksum
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $files = Get-ChildItem -Path release/*.zip,release/*.sha256 | ForEach-Object { $_.FullName }
-          gh release create $env:GITHUB_REF_NAME @files --verify-tag --title "AgentMouse $env:GITHUB_REF_NAME" --notes-file docs/release-notes.md
+          $releaseOptions = @()
+          if ($env:GITHUB_REF_NAME -like '*-*') { $releaseOptions += '--prerelease' }
+          gh release create $env:GITHUB_REF_NAME @files @releaseOptions --verify-tag --title "AgentMouse $env:GITHUB_REF_NAME" --notes-file docs/release-notes.md
           if ($LASTEXITCODE -ne 0) { throw 'Release upload failed.' }

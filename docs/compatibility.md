@@ -1,62 +1,83 @@
-# Compatibility and validation
+# Compatibility and evidence
 
-AgentMouse is an experimental Windows x64 controller, not a universal independent HID mouse. Overlay independence and application input acceptance are separate questions.
+AgentMouse has two input routes. Native Windows capture/messages provide desktop access with application-dependent input behavior. Browser Bridge provides page images and mouse gestures through Chrome's debugger API, without native mouse messages that may activate the window. Neither is a universal second Windows input seat.
 
-| Capability | Current behavior |
-|---|---|
-| Agent pointer | Own coordinates; real mouse movement does not update them |
-| Default click/scroll | Window messages, no system-cursor movement or foreground-activation request |
-| Global routing | Visible window underneath coordinates; no target binding |
-| Background windows | Can work when visible but not focused; occluded/minimized content unsupported |
-| Hover / mouse capture / native mouse drag | Not implemented as an independent system mouse |
-| Keyboard/text entry | No MCP keyboard tool or independent keyboard focus |
-| Touch mode | Experimental; may change real cursor and foreground focus |
-| Elevated apps, secure desktop, games, raw-input apps | Not guaranteed; Windows integrity restrictions still apply |
-| Multiple controlling agents | One session at a time; no multi-session ownership |
-| Human input | Idle waiting and conflict detection; not complete concurrency isolation |
+## Current acceptance status
 
-Applications can ignore messages or activate themselves. Input submission does not prove its UI effect. AgentMouse reports observed cursor/focus changes and requires fresh observations. It has no SendInput/SetCursorPos fallback and does not modify system security policy.
+| Check | Evidence | Limit |
+|---|---|---|
+| Native plugin installation | Codex CLI 0.153.4 and ZCode CLI 0.17.1 report AgentMouse installed/enabled | Plugin-browser visual acceptance was stopped by the user; running conversations were not restarted |
+| Declared MCP connectivity | Official SDK reads cached plugin manifests, lists nine tools, calls real native status | Separate from an actual model choosing a tool |
+| Windows background capture | Real Chrome HWND pixels captured using Windows.Graphics.Capture while covered | Apps can stop repainting; no desktop-crop fallback |
+| Native inactive Chrome input | Further testing reproduced activation/raising by Chrome | Now blocked; use Browser Bridge |
+| Real browser extension | Chrome for Testing 157.0.8103.38, actual unpacked extension → authenticated bridge → MCP | Headless component acceptance, not desktop non-interference |
+| Foreground user window remains in front during full browser workflow | Pending: interactive desktop later returned foreground HWND 0 and unavailable pointer data | No full desktop pass claimed |
+| Third-party CAPTCHA acceptance | Not tested | Local widget tests do not prove server risk checks accept automation |
 
-## Automated checks
+## Real extension/component checks
 
-`npm run build`, `npm test`, and `npm run test:state` do not start GUI interaction. They verify:
+The passing extension test used no GPU-disabling or background-throttling switches. It loaded the actual extension in an isolated Chrome for Testing profile, connected its service worker to the production authenticated loopback bridge, and exercised the real MCP handler/router and shared browser pointer engine.
 
-- MCP parameters, initialization, errors, image results, actual stdio framing and official SDK interoperability.
-- Pause on graceful disconnect after input; read-only probes do not pause another controller; late input/open after disconnect is rejected.
-- Host adapters and relocation with spaces and Unicode paths.
-- Five installer layouts in temporary homes, preservation of other settings and opaque YAML `!!js` expressions, TOML markers inside multiline strings, backups, idempotence, dry run, rollback and concurrent modification detection.
-- Native pointer visibility, independent coordinates, input tracking, x64 layouts, malformed requests and paused-input rejection.
+The test browser rendered a local HTTP fixture. The fixture reports its own state to a separate test HTTP server. The controller chooses input coordinates from returned PNG colors, not DOM selectors. No product code injects scripts or clicks through a page DOM API. CDP in the test harness starts/cleans up the disposable browser; the input/capture path under test is the extension's `chrome.debugger` API.
 
-These are **configuration/protocol checks, not five-client GUI acceptance tests**.
+Passed component cases:
 
-## Native client acceptance (0.5.1)
+- Left/right click and wheel, with actual page counters/scroll position.
+- HTML range slider reaching its acceptance threshold.
+- Puzzle-style pointer-capture drag following a path with a turn, held-button samples and successful drop geometry.
+- Long press exceeding the fixture's 700ms threshold.
+- Double-click producing exactly one `dblclick` result.
+- Ordered point selection A → C → B.
+- HTML5 drag/drop with intercepted drag data, keeping it out of the OS drag loop.
+- Mid-drag pause followed by page pointer-up and confirmed released state.
 
-On 2026-11-04, Codex CLI 0.153.4 and ZCode CLI 0.17.1 were used to install the actual native plugin in isolated homes and then in the local user's real configurations. Both reported `agentmouse@agentmouse` installed/enabled. ZCode reported five skills, one command root (four commands), and `plugin:agentmouse:agentmouse`, with no plugin diagnostics. The native installer now uses these client commands; 0.5.0 only registered standalone MCP and skills and did not create a plugin card.
+Assertions check the fixture state **and expected pixels in a newly captured image**. Screenshot sampling time is not a native DWM frame timestamp. The demo [browser-verification.png](images/browser-verification.png) is an unmodified capture of the account-free fixture, from the headless extension test.
 
-`node scripts/test-clients.mjs` read each client's installed registry and cached MCP declaration, connected through the official MCP SDK, listed all nine tools and called `pointer_status` through the native CLI/pipe path. Both returned the expected `not_running` controller state. No controller was opened and no desktop input was submitted. This confirms native installation and the declared server's connectivity, not that a model selected the tools or that a desktop action succeeded.
+These checks validate mouse execution primitives. They do not solve CAPTCHA images, defeat bot detection, validate a third-party account flow or guarantee every real site accepts the gesture. Site verification may require a person.
 
-The user stopped the attempted UI inspection with Escape. No visual plugin-browser acceptance is claimed, and running conversations were not restarted. Refresh/restart the client to load the new plugin into a new session. Native client tests are separate from the mocked native-installer tests in ordinary CI.
+## Why native Chrome clicks are not the guaranteed route
 
-The complete Windows ZIP was also extracted into a temporary directory and installed twice using the real Codex/ZCode plugin CLIs in isolated homes; both remained enabled and the relocated runtime checks passed. Reproduce with `powershell -File scripts/test-release.ps1 -NativeClients` when both clients are installed. Release CI runs the MCP-only distribution check without claiming native clients are available.
+Earlier native-message experiments succeeded in selected cases, but subsequent tests exposed focus/z-order changes. Chromium's activation code explicitly calls `SetWindowPos(HWND_TOP)` and `SetForegroundWindow` during activation, including activation requested by mouse presses. A pointer coordinate independent of the system cursor does not suppress application code. Inactive Chromium native mouse input is therefore rejected before delivery in this build.
 
-## Earlier prototype observations
+Native wheel handling has another problem: Chromium's wheel routing uses `WindowFromPoint` and may suppress/re-route the message according to the covering window. Native covered-window wheel input is rejected; a visual scrollbar click is a fallback for supported native apps. Browser Bridge wheels go directly to the captured page viewport.
 
-The 0.3/0.4 prototype was checked on one Windows machine. Selected Chrome/Edge click, right-click and scroll actions, plus Notepad/Word caret and scroll actions succeeded using background input without observed cursor or foreground change (10 selected checks). A single enabled session also routed Chrome to Notepad through the official MCP SDK.
+PrintWindow experiments produced an empty page after an occluded resize. Native WGC captured real surfaces, but stock Chrome/GPU combinations could retain old page pixels after DOM changes. Disabling GPU/throttling helped a test configuration but did not establish reliable non-activation; those switches are not the production solution. The passing web gesture path uses Browser Bridge instead.
 
-DSH loaded skills and made actual MCP calls; a later read-only load also worked. The music task was stopped by the user because no sound card was available, so audio playback was **not verified**. Touch showed negative cursor/focus effects and incomplete Word behavior. These are historical observations, not a new 0.5 end-to-end pass or a guarantee for all application versions.
+Primary references: [Chromium activation](https://raw.githubusercontent.com/chromium/chromium/main/ui/views/win/hwnd_message_handler.cc), [wheel routing](https://raw.githubusercontent.com/chromium/chromium/main/ui/base/win/mouse_wheel_util.cc), [occlusion behavior](https://chromium.googlesource.com/chromium/src/+/main/docs/windows_native_window_occlusion_tracking.md), [Chrome debugger API](https://developer.chrome.com/docs/extensions/reference/api/debugger), [Windows capture](https://learn.microsoft.com/en-us/windows/uwp/audio-video-camera/screen-capture).
 
-Claude Code native loading was blocked by local administrator policy and was not bypassed. WorkBuddy native client loading remains unverified. Codex/ZCode native installation and read-only server connectivity were subsequently checked in 0.5.1 as described above; GUI actions remain outside that check.
+## Native capture/input limits
 
-## Optional interactive tests
+Windows 10 1903+ is required for HWND capture. A background MTA worker retains one WGC session. PID, window geometry, mapped-buffer layout and screenshot size are checked; preview images are capped at 4 million pixels. Minimized/cloaked windows are rejected. Unchanged surfaces can reuse the last frame, with `frameChanged=false` and the original native frame timestamp. No business success is inferred from that.
 
-Run only when you intend to open test windows and inject input into a disposable desktop session:
+Native input remains application-dependent. Focus/relative z-order changes pause input. Native dragging is intra-window; independent keyboard, persistent system hover and cross-app system drag/drop are not promised. Touch is experimental, can affect real cursor/focus, and is never a covered-window fallback. The controller starts paused and cannot be armed through MCP.
+
+## Browser bridge safety and pairing
+
+The service binds only to `127.0.0.1`, checks Host/Origin, requires a random per-user token, bounds request sizes and exposes only the listed capture/input commands. Generated configuration stays in the user home, outside Git. One paired profile and one input owner are supported at a time. The extension never activates/selects a tab to execute a gesture and uses explicit zero input modifiers.
+
+Mouse release runs on errors/pause. Client disconnect cancels its gesture; an extension-side watchdog releases an abandoned held button. An unconfirmed release blocks further input. Forced termination of all relevant processes is not a guaranteed cleanup path. Chrome's debugger permission/indicator is explicit; no enterprise policies are bypassed.
+
+## Reproduce
 
 ```powershell
-.\build.ps1
-New-Item -ItemType Directory -Force compatibility-results
-.\dist\AgentMouse.Cli.exe --self-test .\compatibility-results\self-test.json
+npm ci --ignore-scripts
+npm run build
+npm test
+npm run test:state
+node scripts/test-clients.mjs
 ```
 
-This opens practice windows and includes touch experiments that can affect real cursor/focus. `CompatibilityTest.cs` and `browser-fixture.html` supply additional app fixtures; inspect their command help and use temporary documents. UI Automation and Word COM in that harness are validators, not the MCP input backend.
+Ordinary tests use temporary homes, mocked browser transports where stated, actual MCP stdio/SDK, native compilation and state checks. They do not perform desktop input. `test-clients` requires installed clients and is read-only.
 
-For a manual check, open the controller and its practice window, enable desktop input and use its built-in demo. Watch the click count, foreground app and physical pointer before/after. Confirm pause hides the arrow and close test windows afterward. Include Windows/app versions, backend, result and cursor/focus effects in issues; avoid private screenshots and credentials.
+For the **real extension component** test (Node 22+):
+
+```powershell
+$env:AGENTMOUSE_CHROME = .\scripts\get-test-chrome.ps1
+node scripts/test-background-chrome.mjs --headless-test --extension-bridge-test
+```
+
+Chrome for Testing is used because normal branded Chrome removed the command-line extension loader. This is Google's supported development/test distribution, not an attempt to bypass an administrator block. Production users load the generated extension themselves. [Official notice](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/1-g8EFx2BBY/m/my-groups).
+
+Once the interactive desktop is restored, omit `--headless-test` to check the fixture fully behind an existing foreground window. The harness lowers only its owned fixture, checks foreground/z-order, and aborts on interference. `--native-messages` is a diagnostic for the rejected native Chrome route and is expected to fail, not an acceptance pass.
+
+Build/check ZIPs with `scripts/build-release.ps1` and `scripts/test-release.ps1`; `-NativeClients` additionally checks native Codex/ZCode installation in isolated homes. Raw reports, browser profiles and personal captures are excluded from Git. Historical 0.3/0.4 checks of selected Chrome/Edge/Notepad/Word actions are not treated as current universal guarantees; audio playback was never verified.

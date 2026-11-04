@@ -5,21 +5,46 @@ body{margin:0;background:#f4f6fa;font:16px system-ui;color:#243146}h1{font-size:
 #scroll{position:absolute;left:32px;top:157px;width:220px;height:210px;background:#2979ff;color:white;overflow-y:auto;touch-action:pan-y}
 #scroll div{height:38px;padding:6px;box-sizing:border-box}
 #handle{position:absolute;left:322px;top:167px;width:90px;height:70px;background:#8e24aa;color:white;touch-action:none;user-select:none;display:grid;place-items:center}
-#target{position:absolute;left:470px;top:210px;width:130px;height:90px;background:#d5e9df;border:2px dashed #53816c;pointer-events:none}
+#target{position:absolute;left:470px;top:210px;width:130px;height:90px;background:#92400e;border:2px dashed #53816c;pointer-events:none}
 #state{position:absolute;left:30px;top:400px;white-space:pre-wrap;font-size:14px}
+.receipt{position:absolute;top:65px;width:32px;height:32px;background:#e53935}
+#verify-slider{appearance:none;position:absolute;left:260px;top:112px;width:300px;height:20px;background:#94a3b8}
+#verify-slider::-webkit-slider-thumb{appearance:none;width:36px;height:36px;background:#f43f5e;border-radius:4px}
+#hold{position:absolute;left:260px;top:260px;width:170px;height:40px;background:#64748b;color:white;border:0}
+#double{position:absolute;left:260px;top:310px;width:170px;height:40px;background:#4338ca;color:white;border:0}
+#points{position:absolute;left:440px;top:310px;width:180px;height:60px;background:#7c2d12;display:flex;align-items:center;justify-content:space-around}
+#points button{width:40px;height:40px;background:white;border:0;color:#111827;font-weight:bold}
+#html-source,#html-target{position:absolute;top:375px;width:150px;height:40px;color:white;display:grid;place-items:center;font-size:13px}
+#html-source{left:260px;background:#450a0a}#html-target{left:440px;background:#4d7c0f}
 </style><h1>AgentMouse — 本地兼容性测试页</h1><button id="click">点击 / 右键计数</button>
+<div class="receipt" id="receipt-c" style="left:260px"></div><div class="receipt" id="receipt-r" style="left:300px"></div><div class="receipt" id="receipt-s" style="left:340px"></div>
+<div class="receipt" id="receipt-d" style="left:380px"></div><div class="receipt" id="receipt-v" style="left:420px"></div><div class="receipt" id="receipt-h" style="left:460px"></div><div class="receipt" id="receipt-b" style="left:500px"></div><div class="receipt" id="receipt-p" style="left:540px"></div>
+<input type="range" id="verify-slider" min="0" max="100" value="0" aria-label="Local slider verification">
+<button id="hold">按住 700ms</button><button id="double">双击验证</button><div id="points" aria-label="按 A C B 顺序点选"><button>A</button><button>B</button><button>C</button></div>
+<div class="receipt" id="receipt-n" style="left:580px"></div><div id="html-source" draggable="true">HTML5 拖放源</div><div id="html-target">放到这里</div>
 <div id="scroll"></div><div id="target"></div><div id="handle">触摸拖动</div><pre id="state"></pre>
 <script>
 const id=new URLSearchParams(location.search).get('id')||'test';
 const state={c:0,r:0,s:0,d:0};
-function update(){document.title='APCOMPAT-'+id+'|'+Object.entries(state).map(([k,v])=>k+'='+v).join('|');document.querySelector('#state').textContent=JSON.stringify(state,null,2);}
+window.gestureState={dragging:false,dragPassed:false,dragPath:[],sliderPassed:false,longPressed:false,doubleClicks:0,pointSequence:'',pointPassed:false,pointerUps:0,htmlDropPassed:false};
+function report(){if(location.hostname==='127.0.0.1'&&new URLSearchParams(location.search).get('report')==='1')fetch('/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({state,gestureState,page:{visibility:document.visibilityState,focus:document.hasFocus()}})}).catch(()=>{});}
+window.wheelLog=[];window.addEventListener('wheel',e=>window.wheelLog.push({x:e.clientX,y:e.clientY,delta:e.deltaY,target:e.target.id}),{passive:true});
+function update(){document.title='APCOMPAT-'+id+'|'+Object.entries(state).map(([k,v])=>k+'='+v).join('|');document.querySelector('#state').textContent=JSON.stringify(state,null,2);if(state.c)document.querySelector('#receipt-c').style.background='#16a34a';if(state.r)document.querySelector('#receipt-r').style.background='#06b6d4';if(state.s)document.querySelector('#receipt-s').style.background='#facc15';const receipts={d:gestureState.dragPassed?'#ff00ff':null,v:gestureState.sliderPassed?'#00ffff':null,h:gestureState.longPressed?'#ff0000':null,b:gestureState.doubleClicks?'#0000ff':null,p:gestureState.pointPassed?'#00ff00':null,n:gestureState.htmlDropPassed?'#aa00ff':null};for(const [key,color] of Object.entries(receipts))if(color)document.querySelector('#receipt-'+key).style.background=color;report();}
 document.querySelector('#click').onclick=()=>{state.c++;update()};
 document.querySelector('#click').oncontextmenu=e=>{e.preventDefault();state.r++;update()};
 const pane=document.querySelector('#scroll');for(let i=1;i<=80;i++)pane.appendChild(Object.assign(document.createElement('div'),{textContent:'测试列表 '+i}));
 pane.onscroll=()=>{state.s=Math.round(pane.scrollTop);update()};
 const handle=document.querySelector('#handle');let start=null;
-handle.onpointerdown=e=>{start={x:e.clientX,y:e.clientY,left:handle.offsetLeft,top:handle.offsetTop};handle.setPointerCapture(e.pointerId);};
-handle.onpointermove=e=>{if(start){handle.style.left=start.left+e.clientX-start.x+'px';handle.style.top=start.top+e.clientY-start.y+'px';}};
-handle.onpointerup=e=>{if(start){state.d=Math.round(Math.hypot(e.clientX-start.x,e.clientY-start.y));start=null;update();}};
-handle.onpointercancel=()=>{start=null;update()};update();
+handle.onpointerdown=e=>{start={x:e.clientX,y:e.clientY,left:handle.offsetLeft,top:handle.offsetTop};gestureState.dragging=true;gestureState.dragPath=[];handle.setPointerCapture(e.pointerId);report();};
+handle.onpointermove=e=>{if(start){gestureState.dragPath.push({x:e.clientX,y:e.clientY,buttons:e.buttons});handle.style.left=start.left+e.clientX-start.x+'px';handle.style.top=start.top+e.clientY-start.y+'px';}};
+handle.onpointerup=e=>{gestureState.pointerUps++;gestureState.dragging=false;if(start){state.d=Math.round(Math.hypot(e.clientX-start.x,e.clientY-start.y));start=null;const a=handle.getBoundingClientRect(),b=document.querySelector('#target').getBoundingClientRect();gestureState.dragPassed=(a.left+a.width/2>=b.left&&a.left+a.width/2<=b.right&&a.top+a.height/2>=b.top&&a.top+a.height/2<=b.bottom);update();}};
+handle.onpointercancel=()=>{start=null;gestureState.dragging=false;update()};
+document.querySelector('#verify-slider').oninput=e=>{gestureState.sliderPassed=Number(e.target.value)>=95;update()};
+let holdTimer;document.querySelector('#hold').onpointerdown=e=>{e.currentTarget.setPointerCapture(e.pointerId);holdTimer=setTimeout(()=>{gestureState.longPressed=true;update()},700)};
+for(const event of ['pointerup','pointercancel'])document.querySelector('#hold').addEventListener(event,()=>clearTimeout(holdTimer));
+document.querySelector('#double').ondblclick=()=>{gestureState.doubleClicks++;update()};
+document.querySelectorAll('#points button').forEach(button=>button.onclick=()=>{gestureState.pointSequence+=button.textContent;gestureState.pointPassed=gestureState.pointSequence==='ACB';update()});update();
+document.querySelector('#html-source').ondragstart=e=>{e.dataTransfer.setData('text/plain','agentmouse-local-fixture')};
+document.querySelector('#html-target').ondragover=e=>e.preventDefault();
+document.querySelector('#html-target').ondrop=e=>{e.preventDefault();gestureState.htmlDropPassed=e.dataTransfer.getData('text/plain')==='agentmouse-local-fixture';update()};
 </script></html>

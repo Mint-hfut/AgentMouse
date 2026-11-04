@@ -21,7 +21,7 @@ try {
   assert.equal(doctor.ready, true);
   if (!native) assert.deepEqual(JSON.parse(await readFile(join(home, '.workbuddy/mcp.json'), 'utf8')).mcpServers.agentmouse.args, [join(await realpath(runtime), 'mcp-server.mjs')]);
   execFileSync(join(activeRoot, 'dist/AgentMouse.Cli.exe'), ['--state-self-test'], { windowsHide: true });
-  const client = new Client({ name: 'agentmouse-distribution-test', version: '0.5.1' });
+  const client = new Client({ name: 'agentmouse-distribution-test', version: '0.6.0-beta.1' });
   try {
     await client.connect(new StdioClientTransport({ command: process.execPath, args: [join(activeRoot, 'mcp-server.mjs')], cwd: temp, stderr: 'pipe' }));
     assert.equal(client.getServerVersion().name, 'agentmouse');

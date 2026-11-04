@@ -1,6 +1,6 @@
 {
   "name": "agentmouse",
-  "version": "0.5.1",
+  "version": "0.6.0-beta.1",
   "private": true,
   "type": "module",
   "description": "Background computer use for AI agents with an independent pointer, MCP server, Agent Skills, and multi-agent-host installers.",
@@ -10,11 +10,18 @@
   "files": [
     "mcp-server.mjs",
     "agentmouse.mjs",
+    "browser-pointer.mjs",
+    "browser-router.mjs",
+    "bridge-client.mjs",
+    "bridge-server.mjs",
+    "browser-extension/",
     "install.cmd",
     "install.mjs",
     "scripts/install-lib.mjs",
     "scripts/install-plugins.mjs",
     "scripts/build-native.mjs",
+    "scripts/browser-setup.mjs",
+    "scripts/bridge-daemon.mjs",
     "marketplace.json",
     ".agents/plugins/marketplace.json",
     "plugin.json",
@@ -39,7 +46,7 @@
   "scripts": {
     "start": "node mcp-server.mjs",
     "build": "node scripts/build-native.mjs",
-    "test": "node test-mcp.mjs && node test-plugin.mjs && node test-install.mjs && node test-plugins-install.mjs && node test-bootstrap.mjs && node test-sdk.mjs",
+    "test": "node test-mcp.mjs && node test-plugin.mjs && node test-install.mjs && node test-plugins-install.mjs && node test-browser-pointer.mjs && node test-browser-bridge.mjs && node test-bootstrap.mjs && node test-sdk.mjs",
     "test:state": "node scripts/test-native.mjs",
     "test:sdk": "node test-sdk.mjs"
   },
