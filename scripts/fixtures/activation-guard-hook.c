@@ -3,16 +3,21 @@
 #define _UNICODE
 #include <windows.h>
 #include <commctrl.h>
+#ifdef AM_PILOT_CONFIG
+#include AM_PILOT_CONFIG
+#endif
 
 static HWND target;
 static ULONGLONG deadline;
 static HMODULE retained_module;
 static UINT_PTR timer_id;
 static UINT activation_blocks, focus_blocks, position_blocks;
+#ifndef BEGIN_GUARD
 #define BEGIN_GUARD (WM_APP + 300)
 #define END_GUARD (WM_APP + 301)
 #define GUARD_STATS (WM_APP + 302)
 #define GUARD_READY (WM_APP + 303)
+#endif
 #define SUBCLASS_ID 0x414d4752
 
 static BOOL active(void) { return target && GetTickCount64() < deadline; }
@@ -55,6 +60,13 @@ __declspec(dllexport) LRESULT CALLBACK GuardMessages(int code,WPARAM wp,LPARAM l
             GetWindowThreadProcessId(message->hwnd,&pid);
             GetWindowTextW(message->hwnd,title,80);
             BOOL owned_class=GetClassNameW(message->hwnd,name,64) && (!lstrcmpW(name,L"AMGuardFixture") || (!lstrcmpW(name,L"Qt5152QWindowIcon") && !lstrcmpW(title,L"AgentMouse guard Qt fixture")));
+#ifdef AM_PILOT_PID
+            FILETIME created,exited,kernel,user;
+            ULARGE_INTEGER creation;
+            creation.QuadPart=0;
+            if(GetProcessTimes(GetCurrentProcess(),&created,&exited,&kernel,&user)){creation.LowPart=created.dwLowDateTime;creation.HighPart=created.dwHighDateTime;}
+            owned_class=pid==AM_PILOT_PID && creation.QuadPart==AM_PILOT_STARTED && (UINT_PTR)message->hwnd==AM_PILOT_HWND && !lstrcmpW(name,L"Qt51514QWindowIcon");
+#endif
             if (pid==GetCurrentProcessId() && owned_class) {
                 disarm();
                 /* Retain until the disposable target exits: never unload live subclass code. */

@@ -52,6 +52,8 @@ internal static class DesktopInventory {
         if(Native.GetAncestor(target.Handle,2)!=target.Handle)throw new Fault("invalid_argument","A top-level window is required.");
         if(Native.IsIconic(target.Handle))throw new Fault("unsupported","Minimized windows cannot yet be restored without activation; no foreground fallback.");
         int cloaked;if(Native.DwmGetWindowAttribute(target.Handle,14,out cloaked,4)==0&&cloaked!=0)throw new Fault("unsupported","Window belongs to a hidden desktop.");
+        // Native visibility does not restore Qt's hidden widget state.
+        if(!Native.IsWindowVisible(target.Handle)&&Native.Class(target.Handle).StartsWith("Qt",StringComparison.Ordinal))throw new Fault("application_restore_required","Hidden Qt windows must be restored through the application's own UI; forcing native visibility can leave the application logically hidden. No window state was changed.");
         IntPtr foreground=Native.GetForegroundWindow();
         if(!Native.IsWindowVisible(target.Handle)&&!Native.SetWindowPos(target.Handle,new IntPtr(1),0,0,0,0,0x53))throw new Fault("window_show_failed","Could not show the existing window without activation.");
         System.Threading.Thread.Sleep(150);

@@ -173,7 +173,7 @@ def create_server(runtime, node, version):
     async def multi_edit():
         raise ValueError("independent_keyboard_unavailable: no fields were edited")
 
-    @mcp.tool(name="App", description="Discover running apps and native/browser windows. mode=list returns windows; mode=find requires query. mode=show requires exact window_id and reveals an existing hidden native window at the bottom without activation; take a new Screenshot. Minimized restore and foreground launch/switch/resize are unavailable.")
+    @mcp.tool(name="App", description="Discover running apps and native/browser windows. mode=list returns windows; mode=find requires query. mode=show requires exact window_id and can reveal a supported hidden native window without activation; hidden Qt windows require the application's own restore path and are refused unchanged. Take a new Screenshot after a successful show. Minimized restore and foreground launch/switch/resize are unavailable.")
     @json_errors
     async def app(mode: Literal["list", "find", "show"] = "list", query: str | None = None, window_id: str | None = None):
         if mode == "show":
