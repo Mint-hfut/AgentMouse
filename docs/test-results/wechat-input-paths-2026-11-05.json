@@ -1,0 +1,26 @@
+{
+  "date": "2026-11-05",
+  "status": "background_acceptance_failed",
+  "productCodeChanged": false,
+  "upstream": {"name": "agent-desktop", "installedVersion": "1.1.0"},
+  "observations": [
+    {"path": "agent-desktop headless snapshot of WeChat main window", "complete": true, "actionableRefs": 0},
+    {"path": "agent-desktop per-window screenshot", "actualBackgroundImage": true, "foregroundUnchangedAtChecks": true},
+    {"path": "owned diagnostic queued WM_MOUSEMOVE/DOWN/UP to exact existing main HWND", "queued": true, "qqMailInboxOpened": true, "foregroundChanged": true, "foregroundAfterProcess": "WeChatAppEx", "cursorPositionUnchangedAtChecks": true, "threadCaptureAfter": 0, "externalInputTimestampChanged": true, "causalLimit": "Concurrent input timestamp changed; do not attribute every foreground transition exclusively to the probe."},
+    {"path": "agent-desktop headless mail-row reference", "error": "AMBIGUOUS_TARGET", "detail": "identity_not_unique", "delivery": "not_delivered"},
+    {"path": "owned diagnostic unique exact subject text then nearest InvokePattern ancestor", "uniqueMatches": 1, "ancestorDepth": 2, "firstMailOpenedVerifiedByScreenshot": true, "foregroundUnchangedAtChecks": false, "cursorPositionUnchangedAtChecks": true, "causalLimit": "No continuous human-input monitor on this isolated diagnostic."}
+  ],
+  "diagnosticLimits": [
+    "The diagnostic helpers are temporary, single-target probes, not shipped backends or a completed integration.",
+    "No universal nonactivation mechanism established; successful input delivery is not background success.",
+    "No listening TCP endpoint owned by WeChatAppEx was found on the checked loopback/wildcard addresses; this is not proof that all internal debugging transports are unavailable.",
+    "Original WeChat hang root cause remains unproven.",
+    "No private screenshots, account identifiers, mail bodies, or diagnostic state were committed."
+  ],
+  "sourceReferences": [
+    "https://github.com/qt/qtbase/blob/5.15/src/plugins/platforms/windows/qwindowsmousehandler.cpp",
+    "https://github.com/qt/qtbase/blob/5.15/src/plugins/platforms/windows/qwindowswindow.cpp",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-locksetforegroundwindow",
+    "https://devblogs.microsoft.com/oldnewthing/20240919-00/?p=110283"
+  ]
+}

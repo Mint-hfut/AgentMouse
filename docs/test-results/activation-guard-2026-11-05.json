@@ -1,0 +1,24 @@
+{
+  "status": "experimental_owned_fixture_pass",
+  "date": "2026-11-05",
+  "productInputEngineChanged": false,
+  "wechatTested": false,
+  "tests": {
+    "sameProcess": {"passed": true, "cbtAloneAllowsZOrderChange": true, "rawWinFormsMouseCallbacks": 0, "businessCallbackViaPerformClick": 1},
+    "crossProcessNative": {"passed": true, "realButtonClicksAcrossCases": 5, "guardedActivationBlocks": 4, "guardedFocusBlocks": 2, "guardedPositionBlocks": 3, "guardedPointerUnchangedAtChecks": true, "guardedForegroundUnchangedAtChecks": true},
+    "crossProcessQt5152": {"passed": true, "realButtonClicksAcrossCases": 5, "guardedActivationBlocks": 4, "guardedFocusBlocks": 1, "guardedPositionBlocks": 3, "guardedPointerUnchangedAtChecks": true, "guardedForegroundUnchangedAtChecks": true},
+    "recovery": {"explicitDisarm": true, "leaseExpiry": true, "externalHooksRemovedThenLeaseExpired": true}
+  },
+  "cases": ["unguarded positive control", "guarded input", "explicit disarm", "expiry", "external hook removal and expiry"],
+  "limitations": [
+    "Cross-process target is created and owned by the test driver; no user application was injected.",
+    "Positive controls deliberately activate owned fixture windows, then restore the preceding foreground before guarded measurement. They are not counted as background success.",
+    "Foreground/pointer assertions sample boundaries; no claim of exhaustive continuous event monitoring.",
+    "A retained DLL reference remains until the disposable target exits, preventing unloading code still referenced by a subclass. Production unload is not implemented.",
+    "One target root and one UI thread per target process; new windows, new processes, multiple UI threads and real WeChat are not covered.",
+    "Initial WinForms raw mouse test did not deliver a button click. Its PerformClick check only verifies the activation primitive; actual input evidence comes from native and Qt cross-process cases.",
+    "A Qt harness foreground-restoration timing failure was corrected by bounded observation of the asynchronous transition before sending guarded input.",
+    "No formal MCP integration or release package."
+  ],
+  "compiler": {"name": "llvm-mingw-20261104-ucrt-x86_64", "source": "https://github.com/mstorsjo/llvm-mingw/releases/tag/20261104", "archiveSha256": "552191b5754c49a5a20723276a6fc56541ea1922c4c50b7b669022333fc1b40f", "testOnly": true}
+}
