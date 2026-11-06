@@ -1,0 +1,31 @@
+{
+  "status": "owned_process_tests_pass_real_wechat_scoped_pass",
+  "liveAcceptance": "wechat-early-activation-2026-11-05.json",
+  "implementation": "Optional AM_EARLY_API experiment using unmodified MinHook v1.3.4",
+  "tests": {
+    "native": {"buttonCallbacks": 5, "activationBlocks": 3, "focusBlocks": 1, "positionBlocks": 4, "foregroundKeyboardFocusPreserved": true, "foregroundPreserved": true, "pointerPreserved": true, "coverOrderPreserved": true},
+    "qt5152": {"buttonCallbacks": 5, "activationBlocks": 3, "focusBlocks": 1, "positionBlocks": 3, "foregroundKeyboardFocusPreserved": true, "foregroundPreserved": true, "pointerPreserved": true, "coverOrderPreserved": true},
+    "recovery": ["explicit disarm", "one-second lease expiry", "external hooks removed then lease expired"]
+  },
+  "design": [
+    "Reject covered target application calls to foreground activation before entering user32.",
+    "Keep window-message input. Do not falsify GetFocus/GetForegroundWindow results.",
+    "Preserve the foreground thread keyboard-focus HWND; allow private background queue focus required by controls.",
+    "Do not use CBT veto in early API mode.",
+    "Expire the guard when the system last-input timestamp changes; do not protect unrelated UI threads.",
+    "A repeated ShowWindow request on an already visible protected window is suppressed; hidden-window restoration is not provided."
+  ],
+  "negativeEvidence": [
+    "Initial Qt positive-control focus check assumed an exact child HWND; Qt can focus the root. The query now recognizes root or the expected child, while the independent foreground-thread focus assertion remains exact.",
+    "Initial Qt layer checks failed. Instrumentation showed the cover order had changed before guarded input, during initial module installation/settling. The harness establishes and asserts its measured baseline after installation without activation; the post-input order assertion is retained."
+  ],
+  "limits": [
+    "After the user restored WeChat through its own UI, three scoped conversation switches passed; see the separate live acceptance record. This is not full mailbox or new-process coverage.",
+    "No keyboard events were generated. Focus ownership was checked through GetGUIThreadInfo(0), not through an actual typing test.",
+    "Human takeover timestamp handling is implemented but not yet tested with physical concurrent input.",
+    "New windows/processes, other UI threads and additional activation APIs are not covered.",
+    "Inactive detours and a module reference remain until the disposable target exits; production unload is not implemented.",
+    "No MCP integration, plugin update, release, commit or push for this candidate."
+  ],
+  "dependency": {"repository": "https://github.com/TsudaKageyu/minhook", "tag": "v1.3.4", "archiveSha256": "172708123daa0c98d20d3a980b16a50be14af243dc95dee6f79c24193ad010e4", "license": "vendor/minhook/LICENSE.txt"}
+}

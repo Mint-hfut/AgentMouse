@@ -1,8 +1,8 @@
 # Windows-MCP + AgentMouse fusion
 
-> 微信兼容性仍不合格：明确授权的修复版实测中，微信点击主动置前，邮箱任务未完成。常规隔离仍保留，旧插件保持禁用。[审计与实测](audits/2026-11-04.md)。
+已安装的 Full 插件通过 Codex 完成后台恢复、关联邮箱打开和首封邮件读取。输入后端按窗口、进程关系和系统能力工作。回归同时覆盖 WinForms 和 Qt。[验收记录](test-results/codex-background-mail-2026-11-06.json)
 
-用户已明确授权本次输入任务时，调用 `pointer_open(allow_input=true)`，无需再要求用户手动点启用。默认 `false` 仍只打开暂停状态的控制器；输入监测未就绪、未释放接触或触摸实验模式都不能由此启用。`App(mode="show", window_id=...)` 可将支持的隐藏原生窗口展开到底部，随后必须重新截图。隐藏 Qt 窗口返回 `application_restore_required`，保持原状：原生窗口可见不等于 Qt 内部已经恢复，必须使用应用自身的恢复入口。
+已授权的任务可调用 `pointer_open(allow_input=true)` 启用输入。`App(mode="show", window_id=...)` 从应用实际注册的托盘入口恢复已有隐藏或最小化窗口，再通过新截图验证状态。未找到唯一入口或协议不支持时返回能力错误。主窗口与辅助窗口的关联可通过 `parentPid`、owner、所属进程和图像核对。
 
 融合模式将 Windows-MCP 的系统工具与控件识别，接到 AgentMouse 的后台鼠标、窗口采集和浏览器通道。Agent 连接一个 MCP 服务即可使用。原 Windows-MCP 目录没有被修改。
 
@@ -17,7 +17,7 @@
 
 Full 包默认融合模式，Core 包默认原生模式；`--engine native` 保留原 11 工具的轻量模式，不需要 Python/uv。源码目录的非交互命令默认原生模式；发行包按自身 Core/Full 标识选择。刷新或重启所选 Agent，融合模式应看到 **26 个工具**。
 
-打包的 Python 位于用户 `~/.agentmouse/fusion/runtime-<content-id>`；所选 Agent 的插件/MCP 入口改为 `fusion-entry.mjs`。控制器仍需由用户启用输入，浏览器仍需加载生成的 Browser Bridge 扩展。不会自动启动、登录或把业务应用置前。
+打包的 Python 位于用户 `~/.agentmouse/fusion/runtime-<content-id>`，所选 Agent 的插件/MCP 入口为 `fusion-entry.mjs`。已授权的任务通过 `pointer_open(allow_input=true)` 启用输入。浏览器页面通道需要加载生成的 Browser Bridge 扩展。
 
 ## 能力范围
 
@@ -28,12 +28,12 @@ Full 包默认融合模式，Core 包默认原生模式；`--engine native` 保�
 | FileSystem / Process / Registry | 使用 Windows-MCP 原实现 |
 | DisplayInventory / Clipboard / Notification | 使用 Windows-MCP 原实现；剪贴板和系统操作仍是共享资源 |
 | Scrape | 保留 HTTP 抓取；不使用会混入当前前台页面的全局 DOM 抓取 |
-| App | 查询程序和窗口；自动启动、切换前台、调整窗口的模式未开放 |
+| App | 查询程序和窗口，通过已验证的通知图标入口后台恢复已有窗口 |
 | Wait / WaitFor | 等待时间，或只读等待指定原生窗口的控件出现/可用 |
 | Type / Shortcut / MultiSelect / MultiEdit | 明确返回不支持；独立键盘与共享 Ctrl 尚未解决，不会回退物理输入 |
 | pointer_* | 保留 open、status、pause、list_apps、list_windows、inspect_window 六个工具 |
 
-鼠标支持左右键、双击、长按、显式起点和路径拖动、浏览器悬停及纵向滚轮。中键、横向滚轮、原生持久悬停、跨窗口系统拖放未开放；被遮挡原生窗口需通过画面中的滚动条操作。
+鼠标支持左右键、双击、长按、显式起点和路径拖动、浏览器悬停及纵向滚轮。受保护 Qt 窗口支持后台纵向滚轮，其他原生窗口可操作画面中的滚动条。中键、横向滚轮、原生持久悬停和跨窗口系统拖放尚待实现。
 
 ## 目标与坐标
 
@@ -70,7 +70,9 @@ $env:AGENTMOUSE_CHROME = .\scripts\get-test-chrome.ps1
 node scripts/test-background-chrome.mjs --headless-test --fusion-test
 ```
 
-原生验收使用隔离的自建程序，不操作微信账户。微信 → QQ 邮箱和第三方真实验证码服务仍未验收通过。系统工具可修改真实文件、进程和设置；鼠标解耦不表示所有系统命令都不会影响桌面。
+原生回归使用自建 WinForms 和 Qt 程序。另一次明确授权的 Codex 业务验收完成了微信 → QQ 邮箱 → 首封邮件读取，使用已有登录态和曾呈现过的邮箱窗口。最新版复测停在应用退出登录后的登录页。[业务验收记录](test-results/codex-background-mail-2026-11-06.json)
+
+真实第三方验证码服务尚待验收。文件、进程、注册表与剪贴板工具会操作共享的系统资源。
 
 ## English
 

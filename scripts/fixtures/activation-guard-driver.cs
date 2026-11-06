@@ -1,6 +1,9 @@
 using System;using System.Diagnostics;using System.Runtime.InteropServices;using System.Web.Script.Serialization;using System.Collections.Generic;
 class GuardDriver {
  [StructLayout(LayoutKind.Sequential)]struct Point {public int x,y;}
+ [StructLayout(LayoutKind.Sequential)]struct Rect {public int l,t,r,b;}
+ [StructLayout(LayoutKind.Sequential)]struct Gui {public uint size,flags;public IntPtr active,focus,capture,menu,move,caret;public Rect rect;}
+ [DllImport("user32.dll")]static extern bool GetGUIThreadInfo(uint thread,ref Gui info);
  [DllImport("user32.dll")]static extern bool GetPhysicalCursorPos(out Point point);
  [DllImport("kernel32.dll",CharSet=CharSet.Unicode)]static extern IntPtr LoadLibrary(string file);
  [DllImport("kernel32.dll",CharSet=CharSet.Ansi)]static extern IntPtr GetProcAddress(IntPtr module,string name);
@@ -38,8 +41,19 @@ class GuardDriver {
      dll=LoadLibrary(args[1]);Check(dll!=IntPtr.Zero,"DLL load failed");
      cbt=SetWindowsHookEx(5,GetProcAddress(dll,"GuardCbt"),dll,thread);messages=SetWindowsHookEx(4,GetProcAddress(dll,"GuardMessages"),dll,thread);Check(cbt!=IntPtr.Zero&&messages!=IntPtr.Zero,"thread hook installation failed");
      var guardedForeground=GetForegroundWindow();result["guardedForegroundBefore"]=guardedForeground.ToInt64();
+     var keyboardBefore=new Gui{size=(uint)Marshal.SizeOf(typeof(Gui))};Check(GetGUIThreadInfo(0,ref keyboardBefore)&&keyboardBefore.active==guardedForeground&&keyboardBefore.focus!=IntPtr.Zero,"foreground keyboard state unavailable before action");
      Check(guardedForeground!=w&&guardedForeground!=cover,"fixture owns foreground before guarded action");
      Send(w,0x8000+300);Check(Send(w,0x8000+303)==1,"guard did not acknowledge readiness; no input sent");
+     if(Environment.GetEnvironmentVariable("AGENTMOUSE_EARLY_API_TEST")=="1"){
+       // Let installation finish, then establish the measured layer baseline without activation.
+       Send(w,0x8000+301);Send(w,0x8000+317);Send(w,0x8000+300);Check(Send(w,0x8000+303)==1,"guard rearm failed");
+     }
+     result["coverAboveTargetAtArm"]=Above(cover,w);
+     Check(Above(cover,w),"layer baseline changed before input");
+     if(Environment.GetEnvironmentVariable("AGENTMOUSE_EARLY_API_TEST")=="1"){
+       Check(Send(w,0x8000+318)==1,"guard blocked application child-window rendering order");
+       if(args.Length==2){Check(Send(w,0x8000+319)==1,"tray protocol negotiation or deletion metadata failed");result["trayVersionNegotiationVerified"]=true;}
+     }
      Point pointerBefore,pointerAfter;Check(GetPhysicalCursorPos(out pointerBefore),"pointer read failed");
      Send(w,0x8000+315);Click(button,w,2);Send(w,0x8000+316);
      Check(GetPhysicalCursorPos(out pointerAfter),"pointer read failed");
@@ -48,7 +62,12 @@ class GuardDriver {
      result["guardedForegroundAfter"]=GetForegroundWindow().ToInt64();Check(GetForegroundWindow()==guardedForeground,"foreground changed during guarded input");
      long stats=Send(w,0x8000+302);result["activationBlocks"]=stats&255;result["focusBlocks"]=(stats>>8)&255;result["positionBlocks"]=(stats>>16)&255;
      Check((stats&255)>0&&((stats>>8)&255)>0&&((stats>>16)&255)>0,"missing interception counters");
-     Check(Send(w,0x8000+312)==0&&Send(w,0x8000+313)==0,"guarded activation/focus escaped");Check(Above(cover,w),"guarded z-order escaped");
+     var keyboardAfter=new Gui{size=(uint)Marshal.SizeOf(typeof(Gui))};Check(GetGUIThreadInfo(0,ref keyboardAfter)&&keyboardAfter.active==guardedForeground&&keyboardAfter.focus==keyboardBefore.focus,"foreground keyboard focus changed");
+     result["foregroundKeyboardFocusPreserved"]=true;
+     result["targetPrivateQueueActive"]=Send(w,0x8000+312)==1;result["targetPrivateQueueFocused"]=Send(w,0x8000+313)==1;
+     if(Environment.GetEnvironmentVariable("AGENTMOUSE_EARLY_API_TEST")!="1")Check(Send(w,0x8000+312)==0&&Send(w,0x8000+313)==0,"CBT activation/focus escaped");
+     result["coverAboveTargetAfter"]=Above(cover,w);result["targetAboveUserForeground"]=Above(w,guardedForeground);
+     Check(Above(cover,w),"guarded z-order escaped");
      Send(w,0x8000+301);Click(button,w,3);Check(Send(w,0x8000+312)==1&&Above(w,cover),"explicit disarm did not restore behavior");
      Send(w,0x8000+311);Send(w,0x8000+300);System.Threading.Thread.Sleep(1200);Click(button,w,4);Check(Send(w,0x8000+312)==1&&Above(w,cover),"expiry did not restore behavior");
      Send(w,0x8000+311);Send(w,0x8000+300);

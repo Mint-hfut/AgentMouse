@@ -35,13 +35,20 @@ class Target(QWidget):
         if msg.message == 0x8000+312:
             return True, int(u.GetActiveWindow()==wh)
         if msg.message == 0x8000+313:
-            return True, int(u.GetFocus()==bh)
+            return True, int(u.GetFocus() in (wh,bh))
         if msg.message == 0x8000+314:
             fg=u.GetForegroundWindow()
             return True, int(bool(u.SetForegroundWindow(msg.wParam)) if fg in (wh,ch) else fg==msg.wParam)
         if msg.message in (0x8000+315,0x8000+316):
             stress=msg.message==0x8000+315
             return True, 1
+        if msg.message == 0x8000+317:
+            u.SetWindowPos(ch,1,0,0,0,0,0x13)
+            u.SetWindowPos(wh,1,0,0,0,0,0x13)
+            return True, 1
+        if msg.message == 0x8000+318:
+            u.SetWindowPos(bh,0,0,0,0,0,0x13)
+            return True, int(not u.GetWindow(bh,3))
         return super().nativeEvent(kind,ptr)
 
 target=Target()

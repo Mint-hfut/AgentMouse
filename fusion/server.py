@@ -146,7 +146,7 @@ def create_server(runtime, node, version):
             points.append({"x": resolved["x"], "y": resolved["y"]})
         return await session.action("drag", window_id, observation_id, from_loc, toX=destination["x"], toY=destination["y"], durationMs=round(duration * 1000), path=points)
 
-    @mcp.tool(name="Scroll", description="Vertical browser wheel, explicitly targeted by observation. Native covered-window wheels and horizontal scrolling are unsupported; use captured scrollbar controls. No default to the physical mouse position.")
+    @mcp.tool(name="Scroll", description="Vertical wheel for browser tabs and protected Qt native windows, explicitly targeted by observation and a location inside the scrollable region. Other covered native windows and horizontal scrolling are unsupported; use captured scrollbar controls. No default to the physical mouse position.")
     @json_errors
     async def scroll(window_id: str, observation_id: str, loc: list[int] | None = None, label: int | None = None, direction: Literal["up", "down"] = "down", wheel_times: int = 1):
         if not 1 <= wheel_times <= 10:
@@ -173,7 +173,7 @@ def create_server(runtime, node, version):
     async def multi_edit():
         raise ValueError("independent_keyboard_unavailable: no fields were edited")
 
-    @mcp.tool(name="App", description="Discover running apps and native/browser windows. mode=list returns windows; mode=find requires query. mode=show requires exact window_id and can reveal a supported hidden native window without activation; hidden Qt windows require the application's own restore path and are refused unchanged. Take a new Screenshot after a successful show. Minimized restore and foreground launch/switch/resize are unavailable.")
+    @mcp.tool(name="App", description="Discover running apps and native/browser windows. mode=list returns windows; mode=find requires query. For an existing hidden/minimized application, mode=show with its exact window_id discovers and invokes a verified registered tray activation entry under protection. The mechanism uses window/process relationships and observed notification registration, independent of application name. Missing or ambiguous restore capability returns an explicit error. Take a fresh Screenshot after show and verify window state.")
     @json_errors
     async def app(mode: Literal["list", "find", "show"] = "list", query: str | None = None, window_id: str | None = None):
         if mode == "show":

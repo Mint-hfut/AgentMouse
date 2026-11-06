@@ -1,0 +1,47 @@
+{
+  "date": "2026-11-06",
+  "testedVersion": "0.7.0-beta.17",
+  "status": "passed",
+  "host": "Codex CLI using the managed installed AgentMouse Full plugin",
+  "target": "Disposable owned Qt 5.15.2 window with transparent native rendering child",
+  "businessClicks": 1,
+  "scrollValue": 53,
+  "freshImagesVerified": true,
+  "parentReviewedBeforeAndAfterImages": true,
+  "receipts": [
+    {
+      "tool": "Click",
+      "foregroundUnchanged": true,
+      "keyboardFocusUnchanged": true,
+      "physicalPointerUnchanged": true,
+      "buttonReleased": true,
+      "activationProtection": {
+        "activationBlocks": 0,
+        "focusBlocks": 0,
+        "positionBlocks": 0,
+        "virtualPointerQueries": 35
+      }
+    },
+    {
+      "tool": "Scroll",
+      "foregroundUnchanged": true,
+      "keyboardFocusUnchanged": true,
+      "physicalPointerUnchanged": true,
+      "buttonReleased": true,
+      "activationProtection": {
+        "activationBlocks": 0,
+        "focusBlocks": 0,
+        "positionBlocks": 0,
+        "virtualPointerQueries": 16
+      }
+    }
+  ],
+  "paused": true,
+  "limits": [
+    "Owned fixture only",
+    "No authenticated mailbox workflow in this run",
+    "No physical concurrent-input campaign",
+    "No actual keyboard input"
+  ],
+  "privacy": "Machine window identities, raw logs and images are excluded"
+}

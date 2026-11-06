@@ -11,6 +11,7 @@ using System.Threading;
 namespace AgentPointer {
 // Direct WinRT/D3D11 ABI keeps the .NET Framework build independent of Windows SDK/WinMD packages.
 internal static class WindowCapture {
+    internal const int SettleMilliseconds=1200;
     [StructLayout(LayoutKind.Sequential)] private struct Size {internal int Width,Height;}
     [StructLayout(LayoutKind.Sequential)] private struct Texture {internal uint Width,Height,Mips,Array,Format,Samples,Quality,Usage,Bind,Access,Misc;}
     [StructLayout(LayoutKind.Sequential)] private struct Mapped {internal IntPtr Data;internal uint Pitch,Depth;}
@@ -145,7 +146,7 @@ internal static class WindowCapture {
             while(InputTracker.Milliseconds(start)<2200){
                 IntPtr next;Check(Method<GetObject>(pool,7)(pool,out next),"TryGetNextFrame");
                 if(next!=IntPtr.Zero){if(frame!=IntPtr.Zero){Close(frame);Marshal.Release(frame);}active.Frame=frame=next;changed=true;}
-                if(frame!=IntPtr.Zero&&InputTracker.Milliseconds(start)>200)break;Thread.Sleep(8);
+                if(frame!=IntPtr.Zero&&InputTracker.Milliseconds(start)>SettleMilliseconds)break;Thread.Sleep(8);
             }
             if(frame==IntPtr.Zero)throw new Fault("capture_unavailable","Windows Graphics Capture produced no frame; the window was not activated.");
             IntPtr surface;Check(Method<GetObject>(frame,6)(frame,out surface),"Capture surface");keep(surface);

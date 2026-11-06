@@ -1,8 +1,12 @@
 # AgentMouse
 
-**WeChat workflow failed (2026-11-04):** An explicitly authorized live pilot after restart returned real images and kept the physical cursor still, but the click raised WeChat and did not open the QQ Mail conversation. No email was read. Normal WeChat quarantine remains; the previous persistent hang's cause is still unconfirmed. Keep the old installed plugin disabled.
+**0.7.0-beta.15 passed a local Codex end-to-end run.** The managed Full plugin restored a minimized application in the background, opened its associated mailbox, and read the first message. Restore and click receipts preserved foreground and keyboard focus. The input engine kept the physical pointer independent. Routing uses window identity, process ancestry, UI threads, and observed tray registration. The acceptance record excludes private mail contents. [Codex acceptance](docs/test-results/codex-background-mail-2026-11-06.json)
 
-Unreleased source fixes capture lifetime/timeouts, unchanged-image guards, enable/disconnect races, partial accessibility labels, broken worker cleanup and extension release reporting. [Audit and scoped test evidence](docs/audits/2026-11-04.md). These fixes are not a WeChat business-compatibility pass or a client upgrade.
+The current build is `0.7.0-beta.17`, installed in local Codex. It adds random protection-lease identities to separate delayed cleanup from later operations, and tracks tray protocol negotiation and deletion. Its final workflow rerun stopped at an application login page after the session signed out. The completed mail-workflow evidence remains scoped to beta.15.
+
+Codex also exercised the installed beta.17 plugin against a disposable Qt window. A real button callback and scrollbar change passed with fresh images and unchanged foreground, keyboard focus and physical pointer receipts. [Current-build Codex test](docs/test-results/codex-owned-fixture-2026-11-06.json)
+
+Separate WinForms and Qt fixtures cover actual button events, scrolling, lifecycle restoration, and input protection. Compatibility follows tested capabilities. Historical incidents and accessibility-provider containment remain documented. [Compatibility](docs/compatibility.md)
 
 **Background computer use for AI agents on Windows, with a pointer independent of your real mouse.**
 
@@ -41,7 +45,7 @@ cd AgentMouse
 .\install.cmd
 ```
 
-The source installer installs locked dependencies without lifecycle scripts and compiles native files with Windows' .NET Framework compiler. No Visual Studio/.NET SDK is required. Codex native installation needs its CLI; ZCode uses its bundled plugin CLI in standard install locations or PATH.
+Source builds use locked dependencies without lifecycle scripts. The C# controller uses Windows' .NET Framework compiler. The native guard requires an x64 MinGW toolchain, which the verified download script below prepares. Complete ZIP packages include compiled binaries. Codex native installation needs its CLI; ZCode uses its bundled plugin CLI in standard install locations or PATH.
 
 ```powershell
 .\install.cmd --engine fusion --agent codex,zcode
@@ -107,7 +111,7 @@ y = screenshot.y + imageY * screenshot.scaleY
 
 Observations expire after 15 seconds and are consumed by input. Verify the actual image/state afterward; `inputDelivered` is not business success. Cancellation/failure releases buttons where the channel remains available; an unconfirmed release blocks more input. Forced termination cannot guarantee all cleanup.
 
-Native messages cannot guarantee inactive Chromium windows remain behind: Chrome can activate itself during mouse presses. Those inputs are blocked and require Browser Bridge. Native app compatibility still varies; minimized/cloaked windows, independent keyboard input and cross-app system drag-and-drop are not promised. Touch is experimental and never a background fallback.
+Chrome can activate itself during mouse presses. Browser Bridge is the preferred webpage route. The native route protects the target UI thread's activation and virtual pointer queries, with compatibility checked from fresh images and receipts. The tested embedded mailbox used that native route. Restore requires a verified application-owned tray entry. Independent keyboard input, cloaked windows and cross-app system drag-and-drop remain outside the verified scope.
 
 ## Tested scope
 
@@ -117,9 +121,9 @@ Desktop non-interference, actual-client native loading and component tests are s
 
 ## Configuration and removal
 
-Runtime: `%LOCALAPPDATA%\AgentMouse\0.7.0-beta.3` (fusion adds a `-fusion` suffix; physical path resolved for packaged Windows hosts). Browser pairing: `~/.agentmouse/browser`, with a per-user local token and authenticated loopback-only service. Generated secrets/private profiles stay outside the repo. Existing settings are retained with backups under the runtime's `backups/`.
+Runtime files reside under `%LOCALAPPDATA%\AgentMouse`, with a `-fusion` suffix for Full. Native plugin upgrades reuse the registered managed marketplace while the host caches each plugin version separately. Paths resolve to physical locations for packaged Windows hosts. Browser pairing uses `~/.agentmouse/browser`, with a per-user token and authenticated loopback-only service. Existing settings have backups under the runtime's `backups/`.
 
-MCP-only paths: Claude `~/.claude.json`, Codex `~/.codex/config.toml`, ZCode `~/.zcode/cli/config.json`, WorkBuddy `~/.workbuddy/mcp.json`, DSH `~/.dsh/profiles/<profile>/cordis.patch.yml`. Codex native upgrades relocate only AgentMouse's own marketplace when the versioned source changes. Native installer failures report possible partial completion; MCP-only settings writes support rollback.
+MCP-only paths are Claude `~/.claude.json`, Codex `~/.codex/config.toml`, ZCode `~/.zcode/cli/config.json`, WorkBuddy `~/.workbuddy/mcp.json`, and DSH `~/.dsh/profiles/<profile>/cordis.patch.yml`. Native installer failures report possible partial completion. MCP-only settings writes support rollback.
 
 Use `--dry-run` to preview after `npm ci --ignore-scripts`. `--home` isolates a home for testing; `--install-dir` selects the runtime. Do not retain a standalone MCP registration alongside the native plugin's same server. Remove native plugins in the host plugin manager; stop the browser bridge and remove its extension before deleting runtime/pairing files. Restoring whole backups also reverts later unrelated edits.
 
@@ -127,13 +131,14 @@ Use `--dry-run` to preview after `npm ci --ignore-scripts`. `--home` isolates a 
 
 ```powershell
 npm ci --ignore-scripts
+$env:AGENTMOUSE_GCC = ./scripts/get-guard-compiler.ps1
 npm run build
 npm test
 npm run test:state
 node scripts/test-clients.mjs
 ```
 
-The first four commands do not perform desktop input. `test-clients` reads installed Codex/ZCode payloads and checks their declared server/SDK path; it is not a GUI plugin-browser test. CI runs Node 18/24, isolated installer checks and a real extension/component test with pinned Chrome for Testing. The latter is headless and does not claim desktop non-interference.
+Build and noninteractive checks do not perform desktop input. `test-clients` reads installed Codex/ZCode payloads and checks their declared server/SDK path; it is not a GUI plugin-browser test. CI runs Node 18/24, isolated installer checks and a real extension/component test with pinned Chrome for Testing. The latter is headless and does not claim desktop non-interference.
 
 `scripts/build-release.ps1` builds a complete ZIP and SHA-256 file; `scripts/test-release.ps1` verifies its extracted MCP installation. See [adapter references](adapters/README.zh.md) and [interactive test instructions](docs/compatibility.md).
 

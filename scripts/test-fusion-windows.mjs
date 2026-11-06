@@ -41,12 +41,23 @@ try{
   assert.ok(image.content.some(item=>item.type==='image'));assert.ok(observed.window.overlappingWindowsAbove.length>0);
   const wrong=await client.callTool({name:'Click',arguments:{window_id:'wrong-app',observation_id:observed.observationId,...location}});assert.equal(wrong.isError,true);assert.match(JSON.stringify(wrong.content),/wrong_target/);
   const clicked=value(await client.callTool({name:'Click',arguments:{window_id:ready.windowId,observation_id:observed.observationId,...location}}));assert.equal(clicked.windowId,ready.windowId);assert.equal(clicked.backgroundInterferenceFree,true);
+  assert.equal(clicked.foregroundWindowChanged,clicked.focusChanged);
+  assert.equal(typeof clicked.inputFocusBefore.keyboardFocusKnown,'boolean');assert.equal(typeof clicked.inputFocusAfter.keyboardFocusKnown,'boolean');
+  assert.ok(clicked.keyboardFocusChanged===null||typeof clicked.keyboardFocusChanged==='boolean');assert.equal(clicked.keyboardDeliveryTested,false);
+  assert.equal(typeof clicked.activationProtection.activationBlocks,'number');
+  assert.ok(clicked.activationProtection.virtualPointerQueries>0,'The target did not consult the virtual pointer state');
   const stale=await client.callTool({name:'Click',arguments:{window_id:ready.windowId,observation_id:observed.observationId,...location}});assert.equal(stale.isError,true);assert.match(JSON.stringify(stale.content),/stale_observation/);
   const updatedImage=await client.callTool({name:'Snapshot',arguments:{window_id:ready.windowId,use_ui_tree:!qt}}), updated=value(updatedImage);
   if(qt){assert.equal(JSON.parse(await readFile(join(temporary,'qt-state.json'),'utf8')).businessClicks,1);assert.notEqual(clicked.receiverClass,'Static');}
   else assert.ok(updated.controls.elements.some(node=>node.name==='fusion fixture received 1'));
   assert.notEqual(updatedImage.content.find(x=>x.type==='image').data,image.content.find(x=>x.type==='image').data);
   const same=value(await client.callTool({name:'Screenshot',arguments:{window_id:ready.windowId}}));assert.equal(same.screenshot.contentHash,updated.screenshot.contentHash);assert.equal(same.screenshot.frameChanged,false);
+  if(qt){
+    const scrolled=value(await client.callTool({name:'Scroll',arguments:{window_id:ready.windowId,observation_id:same.observationId,loc:ready.wheelLoc,direction:'down',wheel_times:3}}));
+    assert.equal(scrolled.backgroundInterferenceFree,true);
+    await client.callTool({name:'Screenshot',arguments:{window_id:ready.windowId}});
+    assert.ok(JSON.parse(await readFile(join(temporary,'qt-state.json'),'utf8')).scrollValue>0,'The actual Qt scrollbar did not advance');
+  }
   if(!qt){
     await writeFile(join(temporary,'fusion/controls.py'),'import json\nprint(json.dumps({"elements":[{"name":"unsafe_partial","enabled":True}],"providerSucceeded":False,"error":"owned provider failure fixture"}))\n');
     const failed=await client.callTool({name:'WaitFor',arguments:{window_id:ready.windowId,text:'unsafe_partial',timeout:30}});assert.equal(failed.isError,true);assert.match(JSON.stringify(failed.content),/accessibility_unavailable/);

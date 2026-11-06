@@ -12,6 +12,7 @@ static ULONGLONG deadline;
 static HMODULE retained_module;
 static UINT_PTR timer_id;
 static UINT activation_blocks, focus_blocks, position_blocks;
+static DWORD owner_thread,input_tick;
 #ifndef BEGIN_GUARD
 #define BEGIN_GUARD (WM_APP + 300)
 #define END_GUARD (WM_APP + 301)
@@ -20,7 +21,14 @@ static UINT activation_blocks, focus_blocks, position_blocks;
 #endif
 #define SUBCLASS_ID 0x414d4752
 
-static BOOL active(void) { return target && GetTickCount64() < deadline; }
+static BOOL active(void) {
+    if(GetCurrentThreadId()!=owner_thread || !target || GetTickCount64()>=deadline)return FALSE;
+    LASTINPUTINFO input={sizeof(input),0};
+    return GetLastInputInfo(&input) && input.dwTime==input_tick;
+}
+#ifdef AM_EARLY_API
+#include "../../native/activation-policy.h"
+#endif
 static LRESULT CALLBACK subclass(HWND,UINT,WPARAM,LPARAM,UINT_PTR,DWORD_PTR);
 static void disarm(void) {
     HWND old = target;
@@ -45,10 +53,12 @@ static LRESULT CALLBACK subclass(HWND w,UINT msg,WPARAM wp,LPARAM lp,UINT_PTR id
     return DefSubclassProc(w,msg,wp,lp);
 }
 __declspec(dllexport) LRESULT CALLBACK GuardCbt(int code,WPARAM wp,LPARAM lp) {
+#ifndef AM_EARLY_API
     if (code>=0 && active() && ((HWND)wp==target || GetAncestor((HWND)wp,GA_ROOT)==target)) {
         if (code==HCBT_ACTIVATE) { activation_blocks++; return 1; }
         if (code==HCBT_SETFOCUS) { focus_blocks++; return 1; }
     }
+#endif
     return CallNextHookEx(NULL,code,wp,lp);
 }
 __declspec(dllexport) LRESULT CALLBACK GuardMessages(int code,WPARAM wp,LPARAM lp) {
@@ -69,11 +79,20 @@ __declspec(dllexport) LRESULT CALLBACK GuardMessages(int code,WPARAM wp,LPARAM l
 #endif
             if (pid==GetCurrentProcessId() && owned_class) {
                 disarm();
-                /* Retain until the disposable target exits: never unload live subclass code. */
+                /* Retain before installing code that other threads may call. */
                 if (!retained_module) GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,(LPCWSTR)GuardMessages,&retained_module);
+                if(!retained_module)return CallNextHookEx(NULL,code,wp,lp);
+#ifdef AM_EARLY_API
+                if(!install_early())return CallNextHookEx(NULL,code,wp,lp);
+#endif
+                /* Retain until the disposable target exits: never unload live subclass code. */
                 if (retained_module && SetWindowSubclass(message->hwnd,subclass,SUBCLASS_ID,0)) {
                     target=message->hwnd;
                     activation_blocks=focus_blocks=position_blocks=0;
+                    LASTINPUTINFO input={sizeof(input),0};
+                    owner_thread=GetCurrentThreadId();
+                    if(!GetLastInputInfo(&input)){disarm();return CallNextHookEx(NULL,code,wp,lp);}
+                    input_tick=input.dwTime;
                     deadline=GetTickCount64()+1000;
                     timer_id=SetTimer(target,0,50,NULL);
                     if (!timer_id) disarm();

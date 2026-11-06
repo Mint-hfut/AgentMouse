@@ -124,4 +124,10 @@ class FusionTests(unittest.IsolatedAsyncioTestCase):
 
 
 if __name__ == "__main__":
+    require_allowed_window({"process":"Weixin","activationGuard":True})
+    try:
+        require_allowed_window({"process":"Weixin","activationGuard":True},accessibility=True)
+        raise AssertionError("Guard must not enable quarantined UIA")
+    except ValueError:
+        pass
     unittest.main()

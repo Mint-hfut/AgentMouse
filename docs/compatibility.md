@@ -6,14 +6,17 @@ AgentMouse has two input routes. Native Windows capture/messages provide desktop
 
 | Check | Evidence | Limit |
 |---|---|---|
-| Live WeChat after restart | Failed: isolated native screenshots returned, but one click raised WeChat and did not switch to QQ Mail reminders; controller paused | No email read; no WeChat UIA or physical mouse fallback. [Sanitized pilot](test-results/wechat-pilot-2026-11-04.json), [audit](audits/2026-11-04.md) |
+| Installed Codex Full beta.15 | Completed application-owned background restore, associated mailbox navigation and first-message reading | Existing authenticated, previously exposed renderer. [Sanitized acceptance](test-results/codex-background-mail-2026-11-06.json) |
+| Installed Codex Full beta.16 | Background notice click preserved foreground, keyboard focus and pointer. Controller paused with button released | Workflow rerun blocked by application sign-out. Full mailbox chain remains unverified for this build |
+| Installed Codex Full beta.17 | Real Qt button callback and scrollbar change through model-selected MCP tools, fresh images and unchanged foreground/focus/pointer receipts | Owned fixture. [Sanitized acceptance](test-results/codex-owned-fixture-2026-11-06.json) |
+| Historical live WeChat pilot, November 4 | Failed. One click raised WeChat and did not switch to QQ Mail reminders | Historical failure retained. [Sanitized pilot](test-results/wechat-pilot-2026-11-04.json), [audit](audits/2026-11-04.md) |
 | Unreleased beta.4 native input fixes | Old-backend regressions fail; covered Qt button business event, transparent-child routing and four release-failure scenarios pass with fixes | Owned fixtures only; live WeChat remains quarantined. [Results](test-results/native-input-2026-11-04.json) |
 | Native plugin installation | Codex CLI 0.153.4 and ZCode CLI 0.17.1 report AgentMouse installed/enabled | Plugin-browser visual acceptance was stopped by the user; running conversations were not restarted |
 | Declared MCP connectivity | Current source SDK checks 11 Core or 26 Full tool names; historical beta.3 Full had 27 | Separate from an actual model choosing a tool; installed ZCode beta.3 is disabled after the WeChat incident |
 | Windows-MCP fusion | Real Windows control-label/WGC/background-message/result integration, SDK and five host adapter checks passed | Independent keyboard is unavailable; [fusion behavior and evidence](fusion.md) |
 | Fusion browser desktop workflow | Ten cases passed with Chrome fully covered by foreground ChatGPT | [Separate fusion report](test-results/fusion-desktop-2026-11-04.json); local fixture, not real CAPTCHA-provider acceptance |
 | Windows background capture | Real Chrome HWND pixels captured using Windows.Graphics.Capture while covered | Apps can stop repainting; no desktop-crop fallback |
-| Native inactive Chrome input | Further testing reproduced activation/raising by Chrome | Now blocked; use Browser Bridge |
+| Protected native embedded browser input | Installed beta.15 completed a mailbox-row click and detail capture | UI-thread guard required. Browser Bridge preferred for normal webpages. Cold renderer rendering remains unverified |
 | Real browser extension | Chrome for Testing 157.0.8103.38, actual unpacked extension → authenticated bridge → MCP | Passed headless components and the separate covered-window desktop workflow |
 | Foreground user window remains in front during full browser workflow | 2026-11-04: all ten checks passed with Chrome fully covered by ZCode; no focus, relative z-order or unattributed cursor movement detected | One Windows environment and local fixture; [machine-readable result](test-results/desktop-2026-11-04.json) |
 | Third-party CAPTCHA acceptance | Not tested | Local widget tests do not prove server risk checks accept automation |
@@ -47,9 +50,9 @@ These checks validate mouse execution primitives. They do not solve CAPTCHA imag
 
 ## Why native Chrome clicks are not the guaranteed route
 
-Earlier native-message experiments succeeded in selected cases, but subsequent tests exposed focus/z-order changes. Chromium's activation code explicitly calls `SetWindowPos(HWND_TOP)` and `SetForegroundWindow` during activation, including activation requested by mouse presses. A pointer coordinate independent of the system cursor does not suppress application code. Inactive Chromium native mouse input is therefore rejected before delivery in this build.
+Earlier native-message experiments succeeded in selected cases, but subsequent tests exposed focus/z-order changes. Chromium's activation code explicitly calls `SetWindowPos(HWND_TOP)` and `SetForegroundWindow` during activation, including activation requested by mouse presses. The current native route uses a target UI-thread guard to intercept activation and provide virtual pointer queries. The installed beta.15 embedded-mailbox run completed through this path. Normal browser pages should use Browser Bridge for rendering and input support.
 
-Native wheel handling has another problem: Chromium's wheel routing uses `WindowFromPoint` and may suppress/re-route the message according to the covering window. Native covered-window wheel input is rejected; a visual scrollbar click is a fallback for supported native apps. Browser Bridge wheels go directly to the captured page viewport.
+Chromium's wheel routing uses `WindowFromPoint` and may suppress or reroute messages according to the covering window. Protected Qt vertical wheels have passed a real scrollbar fixture. Other covered native windows reject wheel input. Browser Bridge wheels target the captured page viewport.
 
 PrintWindow experiments produced an empty page after an occluded resize. Native WGC captured real surfaces, but stock Chrome/GPU combinations could retain old page pixels after DOM changes. Disabling GPU/throttling helped a test configuration but did not establish reliable non-activation; those switches are not the production solution. The passing web gesture path uses Browser Bridge instead.
 
@@ -67,7 +70,7 @@ The read-only `pointer_inspect_window` uses .NET UIAutomation in a short-lived C
 
 All mouse actions now declare their intended window ID. MCP and native/browser routes check the target against the observation/hit receiver. A supplied window ID defaults to a real window capture; combining it with a desktop crop is rejected. After native input, an unchanged/older frame blocks further input with `unverified_frame` (also exposed as `inputAllowed=false`). A new frame only permits reassessment; it does not prove a business outcome. Skills explicitly stop retries/relaunches and distinguish overlay position from delivery target.
 
-Current-machine read-only checks found the already-running hidden WeChat main window and obtained six accessible window/title-bar/button nodes, without exposing chat content. This does not establish that the login or main app's custom-rendered controls support background execution. The WeChat → QQ Mail business workflow has **not** passed.
+Earlier read-only checks found an already-running hidden WeChat main window and six accessible nodes. The later November 6 installed Codex beta.15 run completed the mailbox business workflow through native images and protected input. Accessibility-provider quarantine remains in place.
 
 `npm run test:routing` uses two owned overlapping WinForms windows to verify layers, UIAutomation, wrong-target rejection, delivery to the covered target (never the decoy), replayed frozen-frame rejection, and hidden/minimized discovery. It checks actual native-message receipt, separately from a WinForms business Click event: the latter did not fire in the exploratory covered-button test. The new full-browser desktop rerun aborted when the foreground changed; its partial result is not recorded as a new complete desktop pass. The beta.2 ten-case desktop report above remains historical evidence.
 
@@ -124,3 +127,14 @@ Chrome for Testing is used because normal branded Chrome removed the command-lin
 Omit `--headless-test` to reproduce the covered-window desktop acceptance with an existing foreground window. The harness lowers only its owned fixture, checks foreground/z-order, and aborts on interference. `--native-messages` is a diagnostic for the rejected native Chrome route and is expected to fail, not an acceptance pass.
 
 Build/check ZIPs with `scripts/build-release.ps1` and `scripts/test-release.ps1`; `-NativeClients` additionally checks native Codex/ZCode installation in isolated homes. Raw reports, browser profiles and personal captures are excluded from Git. Historical 0.3/0.4 checks of selected Chrome/Edge/Notepad/Word actions are not treated as current universal guarantees; audio playback was never verified.
+# 2026-11-06 通用能力增量
+
+本机已通过独立 WinForms 与 Qt 的实际按钮事件、Qt 滚动、两种通知图标协议的应用自身恢复、顶层激活保护及真实物理指针保持。Core/Full 均包含原生保护库与 MinHook 许可。
+
+Codex 原生插件 `0.7.0-beta.15` 已实际执行自动后台恢复、关联邮箱打开和首封邮件正文读取。操作从已安装 Full MCP 入口完成。完整链路复用了现有登录态和已有邮箱窗口。用户曾在诊断阶段把该页面呈现到前台，因此未验证从未暴露的冷渲染器。邮件内容与原始截图保存在本地忽略目录。[脱敏记录](test-results/codex-background-mail-2026-11-06.json)
+
+原生机制按窗口、进程关系、线程和可验证协议分派。能力依赖系统和提供方支持。当前原生保护面向 x64 交互桌面。独立键盘仍未提供，已知无障碍提供方隔离仍生效。图像不变、释放不明和无法验证的恢复入口会阻止继续输入。
+
+`0.7.0-beta.16` 通过源码、Core ZIP 和 Full ZIP 的隔离安装检查，以及状态、路由、四项释放失败回归。真实 Codex 复测遇到账号退出登录，单次提示点击的前台、键盘焦点和真实指针回执正常，随后暂停。完整邮件链路尚待该构建重新验收。
+
+`0.7.0-beta.17` 补充通知图标的单独协议协商与删除元数据清理。自建原生进程验证了 legacy → version 4 → 删除，Qt 测试验证了 version 4 的应用自行恢复。重复注册时声明与实际协议不同的应用仍需验证。

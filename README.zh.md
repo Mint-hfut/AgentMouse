@@ -1,8 +1,12 @@
 # AgentMouse
 
-**微信后台任务尚未通过（2026-11-04）：** 在用户明确授权的重启后实测中，真实鼠标位置未变，但点击使微信主动置前，QQ 邮箱会话未打开，未读取邮件。控制器已停止。常规微信隔离仍保留，旧插件请保持禁用；历史卡死根因仍未证明。
+**0.7.0-beta.15 已通过本机 Codex 端到端验收。** Codex 通过已安装的 Full 插件，在后台恢复最小化窗口、打开关联邮箱并读取首封邮件正文。恢复和点击回执均保持前台与键盘焦点，真实指针未被 Agent 移动。通用机制按 HWND、进程父子关系、UI 线程和实际托盘注册信息工作。完整记录已脱敏。[Codex 验收记录](docs/test-results/codex-background-mail-2026-11-06.json)
 
-未发布源码已修复截图隔离/释放、旧画面判断、断连启用竞争、失败标签及连接清理等问题，并通过回归。[完整审计与测试范围](docs/audits/2026-11-04.md)。这不代表微信业务验收通过，补丁未安装到用户客户端。
+独立 WinForms、Qt 窗口同时覆盖了实际按钮事件、后台滚动、隐藏/最小化恢复和输入保护。兼容范围以实测能力为准。历史故障记录与无障碍提供方隔离仍保留。[兼容性与限制](docs/compatibility.md)
+
+当前构建为 `0.7.0-beta.17`，已安装到本机 Codex。它补充了保护租约的随机标识，避免超时清理与下一次操作冲突，并补充通知图标协议协商与删除记录。最终复测遇到应用退出登录，已暂停，完整邮件任务仍以 beta.15 的成功记录为准。
+
+beta.17 另经真实 Codex 调用已安装插件，在临时 Qt 窗口完成按钮业务事件与后台滚动，操作前后图像及保护回执均已核对。[当前版本的 Codex 测试](docs/test-results/codex-owned-fixture-2026-11-06.json)
 
 **让 AI Agent 在后台操作电脑，Agent 指针与用户鼠标解耦，不和你抢鼠标。**
 
@@ -16,7 +20,7 @@
 
 ## 两个独立版本
 
-发生微信卡死事件后，旧版下载入口暂不推荐；请先看顶部事件说明。
+本次更新同时提供 Core 和 Full。请使用对应版本的完整 ZIP，以保留原生保护库、清单与运行依赖。
 
 | 版本 | 内容 | Python / Windows-MCP | MCP |
 |---|---|---|---|
@@ -41,7 +45,7 @@ cd AgentMouse
 .\install.cmd
 ```
 
-Core 源码安装会下载锁定的 Node 依赖、禁用其生命周期脚本，并使用 Windows 自带的 .NET Framework 编译器构建程序，不要求 Visual Studio 或 .NET SDK。从源码开发 Full 时需要 uv，发布的 Full 已包含 Python。Codex 原生插件安装需要 Codex CLI；ZCode 自动查找标准目录或 PATH 中的客户端插件 CLI。
+源码安装使用锁定的 Node 依赖并禁用生命周期脚本。C# 控制器由 Windows 自带的 .NET Framework 编译器构建，原生保护库需要 x64 MinGW 工具链，可用下方脚本下载并校验。完整 ZIP 已包含编译后的程序。从源码开发 Full 时需要 uv，发布的 Full 已包含 Python。Codex 原生插件安装需要 Codex CLI；ZCode 自动查找标准目录或 PATH 中的客户端插件 CLI。
 
 ```powershell
 .\install.cmd --engine fusion --agent codex,zcode
@@ -89,7 +93,7 @@ node agentmouse.mjs browser-stop
 | `pointer_move` | 默认仅移动独立箭头；带浏览器观察编号时移动/悬停页面虚拟指针 |
 | `pointer_click` | 左右键；`clickCount=2` 双击，或 `holdMs` 长按 |
 | `pointer_drag` | 按下、沿可选 `path` 路径移动、释放，可控制时长 |
-| `pointer_scroll` | 浏览器后台滚轮；原生遮挡窗口改用截图中的滚动条点击 |
+| `pointer_scroll` | 浏览器及受保护 Qt 窗口的垂直滚轮；其他窗口使用可见滚动条控件 |
 | `pointer_pause` | 停止、释放按键和采集资源、隐藏箭头 |
 
 没有长期绑定某个目标。每次点击、拖动、滚动都必须明确提供目标 `windowId` 和对应的观察编号；目标不符直接拒绝。有窗口编号时默认采集该窗口的真实画面，不会把遮挡它的前台画面裁剪后当成后台画面。桌面总览之后的动作同样需要明确目标，下一次可重新观察其他窗口。
@@ -109,7 +113,7 @@ y = screenshot.y + imageY * screenshot.scaleY
 
 ### 为什么不直接向后台 Chrome 发系统鼠标消息？
 
-Chrome 在部分鼠标按下处理中会主动置前并激活窗口；仅仅不移动真实指针不能防止它这样做。软件因此阻止向非前台 Chromium 窗口发送这类消息，要求网页使用 Browser Bridge。桥接仍是鼠标输入，不是 `DOM.click()`。
+Chrome 在部分鼠标按下处理中会主动置前并激活窗口。普通网页优先使用 Browser Bridge，直接向页面发送鼠标输入。原生路径使用目标 UI 线程的激活保护与虚拟指针查询，按实际能力验证。已通过的内嵌邮箱窗口采用该原生路径。
 
 通用 Windows 消息的兼容性取决于应用；最小化/系统隐藏窗口、独立键盘、跨应用系统拖放不保证支持。触摸为实验功能，不会作为后台兜底。
 
@@ -121,7 +125,7 @@ Chrome 在部分鼠标按下处理中会主动置前并激活窗口；仅仅不�
 
 ## 配置、备份与卸载
 
-运行目录默认 `%LOCALAPPDATA%\AgentMouse\0.7.0-beta.3`，融合模式增加 `-fusion` 后缀，并解析 Windows 打包应用重定向后的物理路径。浏览器配对目录 `~/.agentmouse/browser` 使用每用户密钥和仅监听本机的认证服务，密钥及私人浏览器资料不进仓库。
+运行目录位于 `%LOCALAPPDATA%\AgentMouse`，融合模式使用 `-fusion` 后缀。原生插件升级复用已注册的自有 marketplace 路径，宿主按插件版本缓存载荷。Windows 打包应用路径会解析为可供其他进程访问的物理路径。浏览器配对目录 `~/.agentmouse/browser` 使用每用户密钥和仅监听本机的认证服务，密钥及私人浏览器资料不进仓库。
 
 安装保留其他配置并备份到运行目录 `backups/`。MCP 模式配置：Claude `~/.claude.json`、Codex `~/.codex/config.toml`、ZCode `~/.zcode/cli/config.json`、WorkBuddy `~/.workbuddy/mcp.json`、DSH `~/.dsh/profiles/<profile>/cordis.patch.yml`。原生升级只迁移 AgentMouse 自己的市场来源；原生命令失败明确报告可能完成的部分，仅 MCP 设置写入支持回滚。
 
@@ -131,13 +135,14 @@ Chrome 在部分鼠标按下处理中会主动置前并激活窗口；仅仅不�
 
 ```powershell
 npm ci --ignore-scripts
+$env:AGENTMOUSE_GCC = ./scripts/get-guard-compiler.ps1
 npm run build
 npm test
 npm run test:state
 node scripts/test-clients.mjs
 ```
 
-前四条不执行桌面输入；`test-clients` 检查已安装 Codex/ZCode 缓存和实际 MCP/SDK 状态链路，不冒充插件管理页视觉验收。CI 在 Node 18/24 跑安装和协议检查，并用固定版本 Chrome for Testing 跑真实扩展无界面组件测试，后者不等同于桌面验收。
+构建与非交互检查不执行桌面输入。`test-clients` 检查已安装 Codex/ZCode 缓存和实际 MCP/SDK 状态链路，不冒充插件管理页视觉验收。CI 在 Node 18/24 跑安装和协议检查，并用固定版本 Chrome for Testing 跑真实扩展无界面组件测试，后者不等同于桌面验收。
 
 `scripts/build-release.ps1` 构建完整 ZIP 与 SHA-256，`scripts/test-release.ps1` 验证解压安装。详见[接入资料](adapters/README.zh.md)和[兼容性记录](docs/compatibility.md)。
 

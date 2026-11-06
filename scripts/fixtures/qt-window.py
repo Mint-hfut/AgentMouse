@@ -17,7 +17,7 @@ u.CreateWindowExW.argtypes = [w.DWORD, w.LPCWSTR, w.LPCWSTR, w.DWORD, c.c_int, c
 u.CreateWindowExW.restype = w.HWND
 
 from PyQt5.QtCore import Qt, QTimer, QT_VERSION_STR
-from PyQt5.QtWidgets import QApplication, QWidget, QPushButton
+from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QScrollArea, QLabel, QVBoxLayout
 
 QApplication.setAttribute(Qt.AA_DisableHighDpiScaling)
 app = QApplication([])
@@ -32,13 +32,23 @@ button = QPushButton("Business clicks: 0", window)
 button.setGeometry(30, 40, 230, 70)
 count = 0
 state = Path(sys.argv[2])
+area=QScrollArea(window)
+area.setGeometry(20,115,260,55)
+body=QWidget()
+layout=QVBoxLayout(body)
+for index in range(30):
+    layout.addWidget(QLabel(f"Actual scroll row {index}"))
+area.setWidget(body)
+def write_state():
+    state.write_text(json.dumps({"businessClicks":count,"scrollValue":area.verticalScrollBar().value()}),encoding="utf-8")
+area.verticalScrollBar().valueChanged.connect(write_state)
 
 
 def clicked():
     global count
     count += 1
     button.setText(f"Business clicks: {count}")
-    state.write_text(json.dumps({"businessClicks": count}), encoding="utf-8")
+    write_state()
 
 
 button.clicked.connect(clicked)
@@ -48,14 +58,15 @@ hwnd = int(window.winId())
 render = u.CreateWindowExW(0x80020, "STATIC", "", 0x50000000, 0, 0, 300, 180, hwnd, None, None, None)
 assert render, c.get_last_error()
 assert u.SetWindowPos(hwnd, 1, 0, 0, 0, 0, 0x13)
-state.write_text(json.dumps({"businessClicks": 0}), encoding="utf-8")
+write_state()
 
 
 def ready():
     rect = w.RECT()
     assert u.GetWindowRect(hwnd, c.byref(rect))
     origin = window.mapToGlobal(button.geometry().center())
-    print(json.dumps({"windowId": str(hwnd), "loc": [origin.x(), origin.y()], "qt": QT_VERSION_STR, "foregroundUnchanged": u.GetForegroundWindow() == front}), flush=True)
+    wheel=window.mapToGlobal(area.geometry().center())
+    print(json.dumps({"windowId": str(hwnd), "loc": [origin.x(), origin.y()],"wheelLoc":[wheel.x(),wheel.y()], "qt": QT_VERSION_STR, "foregroundUnchanged": u.GetForegroundWindow() == front}), flush=True)
 
 
 QTimer.singleShot(300, ready)

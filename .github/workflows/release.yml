@@ -14,6 +14,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci --ignore-scripts
+      - run: '"AGENTMOUSE_GCC=$(./scripts/get-guard-compiler.ps1)" >> $env:GITHUB_ENV'
       - name: Check release version
         run: |
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version

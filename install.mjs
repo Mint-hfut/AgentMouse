@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { existsSync } from 'node:fs';
 import { mkdir, realpath, readFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
@@ -46,7 +46,19 @@ try {
   if (options.browser && !['extension', 'none'].includes(options.browser)) throw new Error('--browser must be extension or none.');
   if (!options.dryRun && (!existsSync(join(root, 'dist/AgentMouse.exe')) || !existsSync(join(root, 'dist/AgentMouse.Cli.exe')))) (await import('./scripts/build-native.mjs')).buildNative(root);
   const home = options.home ? resolve(options.home) : homedir();
-  let runtimeRoot = resolve(options['install-dir'] || join(options.home ? home : (process.env.LOCALAPPDATA || join(home, 'AppData/Local')), 'AgentMouse/0.7.0-beta.4' + (engine === 'fusion' ? '-fusion' : '')));
+  let runtimeRoot = resolve(options['install-dir'] || join(options.home ? home : (process.env.LOCALAPPDATA || join(home, 'AppData/Local')), 'AgentMouse/0.7.0-beta.17' + (engine === 'fusion' ? '-fusion' : '')));
+  // Keep an existing managed marketplace stable while a previous DLL is resident.
+  if(!options['install-dir']&&options.mode!=='mcp'&&agents.includes('codex')){
+    const {parse}=await import('smol-toml');
+    try{
+      const config=parse(await readFile(join(options.home?join(home,'.codex'):(process.env.CODEX_HOME||join(home,'.codex')),'config.toml'),'utf8'));
+      const previous=config.marketplaces?.agentmouse;
+      if(previous?.source_type==='local'){
+        const path=await realpath(previous.source);
+        if(basename(dirname(path)).toLowerCase()==='agentmouse'&&(engine==='fusion'?basename(path).endsWith('-fusion'):!basename(path).endsWith('-fusion'))&&existsSync(join(path,'.agents/plugins/marketplace.json')))runtimeRoot=path;
+      }
+    }catch(error){if(error.code!=='ENOENT')throw error;}
+  }
   // Packaged Windows hosts can redirect LocalAppData; persist the physical path for other processes.
   if (!options.dryRun) { await mkdir(runtimeRoot, { recursive: true }); runtimeRoot = await realpath(runtimeRoot); }
   const env = options.home ? { ...process.env, CODEX_HOME: join(home, '.codex'), ZCODE_STORAGE_DIR: join(home, '.zcode'), CLAUDE_CONFIG_DIR: join(home, '.claude'), DSH_HOME: join(home, '.dsh'), AGENTMOUSE_HOME: join(home, '.agentmouse') } : process.env;
@@ -59,5 +71,5 @@ try {
   const browser = options.browser === 'none' ? null : await (await import('./scripts/browser-setup.mjs')).setupBrowserBridge({ sourceRoot: options.dryRun ? root : native.length ? join(runtimeRoot, 'plugin') : runtimeRoot, home, env, dryRun: !!options.dryRun });
   console.log(JSON.stringify({ engine, fusion, plugins, connections, browser }, null, 2));
   if (browser && !options.dryRun) console.log('Browser files prepared. Load the generated extension directory in Chrome once; the installer does not bypass Chrome permissions or enterprise policy.');
-  console.log(options.dryRun ? 'Dry run: no settings or runtime files were changed.' : `Installed. Native plugins: ${native.join(', ') || 'none'}. MCP + skills only: ${mcp.join(', ') || 'none'}. Refresh/restart selected agents; enable desktop input once in AgentMouse before use.`);
+  console.log(options.dryRun ? 'Dry run: no settings or runtime files were changed.' : `Installed. Native plugins: ${native.join(', ') || 'none'}. MCP + skills only: ${mcp.join(', ') || 'none'}. Refresh/restart selected agents. An authorized task can enable input through pointer_open.`);
 } catch (error) { console.error('AgentMouse: ' + error.message); process.exitCode = 1; }

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { existsSync } from 'node:fs';
-import { cp, mkdir, writeFile } from 'node:fs/promises';
+import { cp, mkdir, writeFile, readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { callApp } from './mcp-server.mjs';
@@ -11,6 +11,7 @@ export async function prepareHost(host, directory) {
   const destination=resolve(directory);
   await mkdir(destination); // Refuse to overwrite an existing installation or user directory.
   const files=['mcp-server.mjs','agentmouse.mjs','browser-router.mjs','bridge-client.mjs','browser-pointer.mjs','bridge-server.mjs','scripts/browser-setup.mjs','scripts/bridge-daemon.mjs','dist/AgentMouse.exe','dist/AgentMouse.Cli.exe'];
+  files.push('scripts/build-guard.mjs','THIRD_PARTY_NOTICES.md','licenses/MinHook.LICENSE.txt',...(await import('./scripts/build-guard.mjs')).guardFiles(root));
   for(const file of files){const target=join(destination,file);await mkdir(dirname(target),{recursive:true});await cp(join(root,file),target);}
   await cp(join(root,'skills'),join(destination,'skills'),{recursive:true});
   await cp(join(root,'browser-extension'),join(destination,'browser-extension'),{recursive:true});
@@ -20,7 +21,8 @@ export async function prepareHost(host, directory) {
     await writeFile(join(destination,'mcp.json'),JSON.stringify(hostConfig(host,destination),null,2));
   }else{
     await writeFile(join(destination,'cordis.patch.yml'),JSON.stringify(hostConfig(host,destination),null,2));
-    await writeFile(join(destination,'package.json'),JSON.stringify({name:'dsh-agentmouse',version:'0.7.0-beta.4',private:true,dsh:{bundle:{patch:'./cordis.patch.yml'}}},null,2));
+    const metadata=JSON.parse(await readFile(join(root,'package.json'),'utf8'));
+    await writeFile(join(destination,'package.json'),JSON.stringify({name:'dsh-agentmouse',version:metadata.version,private:true,dsh:{bundle:{patch:'./cordis.patch.yml'}}},null,2));
   }
   await writeFile(join(destination,'setup.mjs'),`import {writeFile,rename} from 'node:fs/promises';\nimport {dirname,join} from 'node:path';\nimport {fileURLToPath} from 'node:url';\nimport {hostConfig} from './agentmouse.mjs';\nconst root=dirname(fileURLToPath(import.meta.url));\nconst file=join(root,${JSON.stringify(host==='dsh'?'cordis.patch.yml':'mcp.json')});\nawait writeFile(file+'.tmp',JSON.stringify(hostConfig(${JSON.stringify(host)},root),null,2));\nawait rename(file+'.tmp',file);\nconsole.log('Updated '+file);\n`);
   return {host,directory:destination,note:'After extraction or relocation, run node setup.mjs in this directory to regenerate local paths.'};
@@ -55,6 +57,7 @@ export async function run(args) {
   if (command === 'doctor') {
     const files = ['mcp-server.mjs', 'dist/AgentMouse.exe', 'dist/AgentMouse.Cli.exe', 'skills/agentmouse/SKILL.md'];
     const missing = files.filter(file => !existsSync(join(root, file)));
+    try{for(const file of (await import('./scripts/build-guard.mjs')).guardFiles(root))if(!existsSync(join(root,file)))missing.push(file);}catch{missing.push('dist/AgentMouse.Guard.current');}
     const supported = process.platform === 'win32' && process.arch === 'x64' && Number(process.versions.node.split('.')[0]) >= 18;
     process.stdout.write(`${JSON.stringify({ ready: supported && !missing.length, platform: process.platform, arch: process.arch, node: process.versions.node, missing, root }, null, 2)}\n`);
     return supported && !missing.length ? 0 : 1;

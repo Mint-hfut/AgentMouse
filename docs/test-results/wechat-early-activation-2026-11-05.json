@@ -1,0 +1,22 @@
+{
+  "status": "scoped_real_wechat_acceptance_pass",
+  "date": "2026-11-05",
+  "backend": "explicitly scoped early API guard plus queued native mouse messages",
+  "formalMcpIntegration": false,
+  "targetScope": "one existing normally restored WeChat main window, one UI thread, same process instance",
+  "rounds": [
+    {"round": 1, "activationBlocks": 23, "focusBlocks": 23, "positionBlocks": 7, "conversationChangedVerifiedFromImage": true, "foregroundChanged": false, "raisedAboveUserWindow": false, "keyboardFocusKnown": true, "keyboardFocusChanged": false, "pointerUnchanged": true, "inputTimestampChanged": false, "captureAfter": 0, "guardDisabled": true, "messageHookRemoved": true, "cbtHookRemoved": true},
+    {"round": 2, "activationBlocks": 23, "focusBlocks": 23, "positionBlocks": 2, "conversationChangedVerifiedFromImage": true, "foregroundChanged": false, "raisedAboveUserWindow": false, "keyboardFocusKnown": true, "keyboardFocusChanged": false, "pointerUnchanged": true, "inputTimestampChanged": false, "captureAfter": 0, "guardDisabled": true, "messageHookRemoved": true, "cbtHookRemoved": true},
+    {"round": 3, "activationBlocks": 23, "focusBlocks": 23, "positionBlocks": 4, "conversationChangedVerifiedFromImage": true, "foregroundChanged": false, "raisedAboveUserWindow": false, "keyboardFocusKnown": true, "keyboardFocusChanged": false, "pointerUnchanged": true, "inputTimestampChanged": false, "captureAfter": 0, "guardDisabled": true, "messageHookRemoved": true, "cbtHookRemoved": true}
+  ],
+  "humanVerification": {"normalClickConfirmedAfterRoundOne": true, "normalClickConfirmedAfterAllThreeRounds": true},
+  "privacy": "Screenshots, account information, conversation names/content and machine window/process identifiers remain local and are not included here.",
+  "limits": [
+    "Three conversation switches, not a long-duration stability campaign.",
+    "No actual keyboard events were generated; foreground-thread focus was checked with GetGUIThreadInfo(0).",
+    "No message was sent. No mail detail or newly opened WeChatAppEx process was tested.",
+    "The guard was disabled and external hooks removed after each round. Inactive API detours and the retained DLL reference remain until WeChat exits; production detach is unfinished.",
+    "The successful candidate does not establish the root cause of all historical hangs.",
+    "No formal MCP integration, plugin installation update, release, commit or push this turn."
+  ]
+}

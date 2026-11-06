@@ -3,7 +3,7 @@
   "owner": { "name": "Mint-hfut" },
   "plugins": [{
     "name": "agentmouse",
-    "version": "0.7.0-beta.4",
+    "version": "0.7.0-beta.17",
     "description": "Background Windows computer use with an independent Agent pointer.",
     "source": "./"
   }]

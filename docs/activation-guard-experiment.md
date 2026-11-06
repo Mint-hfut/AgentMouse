@@ -1,6 +1,12 @@
 # 防激活原型：自建窗口实验
 
-当前状态：原生窗口与 Qt 5.15.2 的跨进程真实按钮测试通过，但后续真实微信试验失败，用户报告人工也无法点击，经授权重启后恢复。防激活原型不应接入正式 MCP。见 [自建窗口记录](test-results/activation-guard-2026-11-05.json) 和 [微信故障记录](incidents/2026-11-05-wechat-guard-interaction.md)。
+本文保留 2026-11-05 的分阶段实验记录。当前生产实现位于 `ActivationGuard.cs` 和 `native/`，采用独立租约和通用目标绑定。正式 MCP 的后续测试见 [Codex 验收记录](test-results/codex-background-mail-2026-11-06.json)，模块与依赖分发见 [架构](architecture.md)。
+
+新增 `--early-api` 候选模式，改为在目标程序调用激活 API 时提前处理，不使用 CBT 否决。原生与 Qt 自建进程已验证用户前台线程的键盘焦点、鼠标和层级保持，并验证解除与超时恢复。后续真实微信三次会话切换也保持前台、键盘焦点、鼠标和层级，用户在首轮及全部三轮后确认人工点击正常。见 [真实验收及剩余限制](test-results/wechat-early-activation-2026-11-05.json)。此前 CBT 微信失败记录仍有效，不以新候选的成功抹去旧故障。
+
+复现新模式时，在下面跨进程命令中增加 `--early-api`，例如 `node scripts/test-activation-guard.mjs --cross-process --early-api --qt`。MinHook 依赖保留在 `vendor/minhook`，当前 Core/Full 的原生保护库也使用该依赖，并随包保留许可证。实验使用 `GetGUIThreadInfo(0)` 检查用户前台线程的焦点。
+
+早期 CBT 试验中，原生窗口与 Qt 5.15.2 跨进程按钮测试通过，随后真实微信测试失败，用户报告人工也无法点击，经授权重启后恢复。该失败原型已停止使用。见 [自建窗口记录](test-results/activation-guard-2026-11-05.json) 和 [微信故障记录](incidents/2026-11-05-wechat-guard-interaction.md)。
 
 ## 实现
 
@@ -38,4 +44,4 @@ node scripts/test-activation-guard.mjs --cross-process --qt
 
 尚未覆盖新窗口的首次显示、其他 UI 线程、WeChatAppEx 新进程、跨位数、完整的进程异常退出矩阵、连续前台事件监测和实际微信任务。普通聊天/邮件内容没有进入此实验。
 
-用户已确认另一位 agent 停止操作后进行了受限试验。实际失败撤销了将自建窗口结果外推到微信的依据；当前保持常规微信隔离，不以再次启用原型作为恢复方法。
+用户确认另一位 agent 停止操作后才进行了受限试验。早期失败说明自建窗口结果不足以证明真实应用兼容性。后续候选与正式 MCP 分别记录了独立验收，无障碍提供方的隔离继续保留。

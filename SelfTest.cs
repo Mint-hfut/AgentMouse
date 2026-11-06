@@ -28,11 +28,13 @@ internal static class SelfTest {
         }
     }
     internal static int Routing(){
-        var engine=new Engine{Armed=true};PracticeForm target=null,cover=null;RoutingButton targetProbe=null,coverProbe=null;Exception startup=null;var ready=new ManualResetEventSlim();
+        var engine=new Engine{Armed=true};PracticeForm target=null,cover=null;NotifyIcon trayIcon=null;RoutingButton targetProbe=null,coverProbe=null;Exception startup=null;var ready=new ManualResetEventSlim();
         var ui=new Thread(delegate(){
             try{
                 target=new PracticeForm(engine){NoActivate=true,Text="AgentMouse routing target",ShowInTaskbar=false};
                 cover=new PracticeForm(new Engine()){NoActivate=true,Text="AgentMouse routing decoy",ShowInTaskbar=false};
+                trayIcon=new NotifyIcon{Icon=SystemIcons.Information,Text="AgentMouse generic tray restore",Visible=true};
+                trayIcon.MouseClick+=delegate(object sender,MouseEventArgs args){if(args.Button==MouseButtons.Left){target.WindowState=FormWindowState.Normal;target.Show();Native.SetWindowPos(target.Handle,new IntPtr(1),0,0,0,0,0x13);}};
                 targetProbe=new RoutingButton{Bounds=target.TestButton.Bounds,Text="Routing target"};target.TestButton.Hide();target.Controls.Add(targetProbe);
                 // Reproduce a transparent render child over its input surface.
                 var renderLayer=new TransparentRenderLayer{Bounds=targetProbe.Bounds};target.Controls.Add(renderLayer);
@@ -60,6 +62,13 @@ internal static class SelfTest {
             var saved=(Observation)typeof(Engine).GetField("observation",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(engine);
             saved.FrameTimestamp=Convert.ToInt64(Obj(observed["screenshot"])["frameTimestamp100ns"]);action["observationId"]=stale["observationId"];
             Expect("unverified_frame",()=>engine.Dispatch(action));Assert(targetProbe.Ups==1&&coverProbe.Ups==0,"A repeated frame permitted another click");
+            PracticeForm popup=null;
+            target.Invoke((Action)delegate{popup=new PracticeForm(new Engine()){NoActivate=true,ShowInTaskbar=false,Text="Owned popup regression",Owner=target};popup.Show();});
+            var popupObserved=Obj(engine.Dispatch(new Dictionary<string,object>{{"method","observe"},{"windowId",target.Handle.ToInt64().ToString()},{"capture","window"}}));
+            var popupState=(Observation)typeof(Engine).GetField("observation",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(engine);
+            popupState.FrameTimestamp=saved.FrameTimestamp;popupState.ImageHash=saved.ImageHash;
+            Assert((bool)typeof(Engine).GetMethod("FreshAfterAction",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).Invoke(engine,new object[]{popupState}),"A verified newly visible same-process popup was ignored");
+            target.Invoke((Action)delegate{popup.Close();});
             target.Invoke((Action)delegate{target.Hide();});
             listed=Engine.Windows(IntPtr.Zero).Find(w=>w.Handle==target.Handle);Assert(listed!=null&&!(bool)Obj(listed.Export())["canCapture"],"Hidden application window disappeared from inventory");
             Expect("window_missing",()=>engine.Dispatch(new Dictionary<string,object>{{"method","observe"},{"windowId",target.Handle.ToInt64().ToString()},{"capture","window"}}));
@@ -68,17 +77,20 @@ internal static class SelfTest {
             Assert(((System.Collections.IList)Obj(Engine.Windows(IntPtr.Zero).Find(w=>w.Handle==target.Handle).Export())["overlappingWindowsAbove"]).Contains(cover.Handle.ToInt64().ToString()),"Showing the hidden fixture raised it above the cover");
             target.Invoke((Action)delegate{Native.ShowWindow(target.Handle,7);});
             listed=Engine.Windows(IntPtr.Zero).Find(w=>w.Handle==target.Handle);Assert(listed!=null&&(bool)Obj(listed.Export())["minimized"],"Minimized application window disappeared from inventory");
-            Expect("unsupported",()=>DesktopInventory.Query(new Dictionary<string,object>{{"method","show_window"},{"windowId",target.Handle.ToInt64().ToString()}}));
+            var restored=Obj(DesktopInventory.Query(new Dictionary<string,object>{{"method","show_window"},{"windowId",target.Handle.ToInt64().ToString()}}));
+            Assert((bool)restored["foregroundUnchanged"]&&!Native.IsIconic(target.Handle),"Application-owned tray restore did not restore the minimized fixture");
             Assert(Native.GetForegroundWindow()==foreground,"Read/fixture test changed foreground");
             Console.WriteLine("PASS real own-window routing: covering layer inventory, UIAutomation, wrong-target rejection, covered native-message recipient, frozen post-action frame rejection, hidden-window discovery; foreground retained. Native message receipt is not a WinForms Click/business-success assertion.");return 0;
         }finally{
-            engine.Pause("test finished");if(target!=null&&!target.IsDisposed)target.Invoke((Action)delegate{cover.Close();target.Close();});ui.Join(3000);
+            engine.Pause("test finished");if(target!=null&&!target.IsDisposed)target.Invoke((Action)delegate{if(trayIcon!=null)trayIcon.Dispose();cover.Close();target.Close();});ui.Join(3000);
         }
     }
     private sealed class RoutingButton : Button {
         internal volatile int Ups;
         internal bool TrackReceipt;
-        protected override void WndProc(ref System.Windows.Forms.Message message){if(message.Msg==Native.LEFTUP){Ups++;if(TrackReceipt)Text="fusion fixture received "+Ups;}base.WndProc(ref message);}
+        private int businessClicks;
+        internal RoutingButton(){Click+=delegate{businessClicks++;if(TrackReceipt)Text="fusion fixture received "+businessClicks;};}
+        protected override void WndProc(ref System.Windows.Forms.Message message){if(message.Msg==Native.LEFTUP)Ups++;base.WndProc(ref message);}
     }
     private sealed class TransparentRenderLayer : Control {
         protected override CreateParams CreateParams {get{var p=base.CreateParams;p.ExStyle|=0x20;return p;}}
@@ -118,7 +130,7 @@ internal static class SelfTest {
                     Assert(!engine.Armed&&engine.MessageButtonHeld,"Uncertain release was reported as safe");
                     engine.Armed=true;Expect("contact_unreleased",()=>engine.Dispatch(request));
                 }else if(scenario=="pause"){
-                    var action=Task.Run(()=>engine.Dispatch(request));Assert(probe.Pressed.Wait(3000),"Fixture never pressed");engine.Pause("fixture pause");
+                    var action=Task.Run(()=>engine.Dispatch(request));if(!probe.Pressed.Wait(3000)){if(action.IsCompleted)action.GetAwaiter().GetResult();throw new Exception("Fixture never pressed");}engine.Pause("fixture pause");
                     try{action.GetAwaiter().GetResult();throw new Exception("Paused hold succeeded");}catch(Fault error){Assert(error.Code=="paused","Unexpected pause failure");}
                 }else{
                     string pipe="agentmouse-background-"+Guid.NewGuid();
@@ -195,6 +207,11 @@ internal static class SelfTest {
         protected override void WndProc(ref System.Windows.Forms.Message message){if(message.Msg==0xff)engine.Human.Read(message.LParam);base.WndProc(ref message);}
     }
     internal static int StateOnly(){
+        var focusA=new DesktopInventory.ForegroundInput{Known=true,Focus=new IntPtr(11)};
+        var focusB=new DesktopInventory.ForegroundInput{Known=true,Focus=new IntPtr(12)};
+        Assert(DesktopInventory.KeyboardFocusChanged(focusA,focusB)==true,"Different known keyboard focus must be reported");
+        focusB.Focus=focusA.Focus;Assert(DesktopInventory.KeyboardFocusChanged(focusA,focusB)==false,"Same known keyboard focus must remain unchanged");
+        focusB.Known=false;Assert(DesktopInventory.KeyboardFocusChanged(focusA,focusB)==null,"Unknown focus must not be reported as no change");
         var e=new Engine();
         Assert(!e.ShowPointer,"Paused startup must hide the overlay");
         e.Armed=true;Assert(e.ShowPointer,"Enabled input must show the requested overlay");

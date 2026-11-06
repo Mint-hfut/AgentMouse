@@ -17,6 +17,8 @@ class GuardPilot {
  [DllImport("user32.dll")]static extern IntPtr GetWindow(IntPtr w,uint k);
  [DllImport("user32.dll")]static extern bool GetPhysicalCursorPos(out P p);
  [DllImport("user32.dll")]static extern bool GetWindowRect(IntPtr w,out R r);
+ [DllImport("user32.dll")]static extern bool IsWindowVisible(IntPtr w);
+ [DllImport("user32.dll")]static extern bool IsIconic(IntPtr w);
  [DllImport("user32.dll")]static extern bool GetGUIThreadInfo(uint t,ref G g);
  [DllImport("user32.dll")]static extern bool GetLastInputInfo(ref L l);
  [DllImport("user32.dll")]static extern bool PostMessage(IntPtr w,uint m,IntPtr p,IntPtr l);
@@ -30,7 +32,9 @@ class GuardPilot {
      var config=json.Deserialize<Dictionary<string,object>>(File.ReadAllText(args[0]));target=new IntPtr(Convert.ToInt64(config["window"]));uint pid;uint thread=GetWindowThreadProcessId(target,out pid);
      Check(pid==Convert.ToUInt32(config["pid"]),"window process changed");using(var process=Process.GetProcessById((int)pid))Check(process.StartTime.ToUniversalTime().ToFileTimeUtc()==Convert.ToInt64(config["started"]),"process instance changed");
      R rect;Check(GetWindowRect(target,out rect),"window rectangle unavailable");Check(rect.left==Convert.ToInt32(config["left"])&&rect.top==Convert.ToInt32(config["top"])&&rect.right-rect.left==Convert.ToInt32(config["width"])&&rect.bottom-rect.top==Convert.ToInt32(config["height"]),"window geometry changed");
+     Check(IsWindowVisible(target)&&!IsIconic(target),"target is hidden or minimized; no input sent");
      var foreground=GetForegroundWindow();Check(foreground!=IntPtr.Zero&&foreground!=target&&Above(foreground,target),"target must be behind current foreground");
+     G keyboardBefore=new G{size=(uint)Marshal.SizeOf(typeof(G))};Check(GetGUIThreadInfo(0,ref keyboardBefore)&&keyboardBefore.active==foreground&&keyboardBefore.focus!=IntPtr.Zero,"foreground keyboard focus unknown; no input sent");
      L input=new L{size=8};Check(GetLastInputInfo(ref input),"input activity unavailable");Check(unchecked((uint)Environment.TickCount-input.time)>1000,"human input active; no click sent");
      P before;Check(GetPhysicalCursorPos(out before),"pointer unavailable");
      string channel=(string)config["channel"];uint begin=RegisterWindowMessage(channel+".Begin"),stats=RegisterWindowMessage(channel+".Stats");end=RegisterWindowMessage(channel+".End");ready=RegisterWindowMessage(channel+".Ready");Check(begin!=0&&stats!=0&&end!=0&&ready!=0,"message registration failed");
@@ -39,6 +43,7 @@ class GuardPilot {
      cbt=SetWindowsHookEx(5,cb,module,thread);messages=SetWindowsHookEx(4,cm,module,thread);Check(cbt!=IntPtr.Zero&&messages!=IntPtr.Zero,"guard hooks unavailable");
      armed=true;Send(target,begin);Check(Send(target,ready)==1,"guard not ready; no click sent");
      Check(GetForegroundWindow()==foreground,"foreground changed before input");L latest=new L{size=8};Check(GetLastInputInfo(ref latest)&&latest.time==input.time,"new input before dispatch");
+     Check(IsWindowVisible(target)&&!IsIconic(target),"target visibility changed before input");
      int x=Convert.ToInt32(config["x"]),y=Convert.ToInt32(config["y"]);Check(x>=0&&y>=0&&x<rect.right-rect.left-20&&y<rect.bottom-rect.top-20,"point outside target client safety margin");
      IntPtr point=new IntPtr((y<<16)|(x&65535));bool down=false,up=false;
      try{Check(PostMessage(target,0x200,IntPtr.Zero,point),"move queue failed");down=PostMessage(target,0x201,new IntPtr(1),point);Check(down,"down queue failed");up=PostMessage(target,0x202,IntPtr.Zero,point);Check(up,"up queue failed");report["queued"]=true;}
@@ -48,6 +53,9 @@ class GuardPilot {
      P after;GetPhysicalCursorPos(out after);latest=new L{size=8};GetLastInputInfo(ref latest);
      report["foregroundChangedDuringSamples"]=focusChanged;report["raisedDuringSamples"]=raised;report["pointerUnchangedAtChecks"]=before.x==after.x&&before.y==after.y;report["inputTimestampChanged"]=latest.time!=input.time;
      report["backgroundInterferenceFree"]=!focusChanged&&!raised&&!externalInput&&before.x==after.x&&before.y==after.y;
+     G keyboardAfter=new G{size=(uint)Marshal.SizeOf(typeof(G))};bool keyboardKnown=GetGUIThreadInfo(0,ref keyboardAfter)&&keyboardAfter.active==GetForegroundWindow()&&keyboardAfter.focus!=IntPtr.Zero;
+     report["keyboardFocusKnown"]=keyboardKnown;report["keyboardFocusChanged"]=keyboardKnown?(object)(keyboardAfter.focus!=keyboardBefore.focus):null;
+     report["backgroundInterferenceFree"]=(bool)report["backgroundInterferenceFree"]&&keyboardKnown&&keyboardAfter.focus==keyboardBefore.focus;
      G gui=new G{size=(uint)Marshal.SizeOf(typeof(G))};Check(GetGUIThreadInfo(thread,ref gui),"thread state unavailable");report["captureAfter"]=gui.capture.ToInt64();report["businessResultVerified"]=false;
      report["ok"]=true;return 0;
    }catch(Exception error){report["ok"]=false;report["error"]=error.Message;return 1;}

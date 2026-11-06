@@ -107,7 +107,7 @@ async function destinationPath(path) {
 export async function copyRuntime(sourceRoot, runtimeRoot, { engine = 'native' } = {}) {
   const files = ['LICENSE', 'package.json', 'mcp-server.mjs', 'agentmouse.mjs', 'browser-router.mjs', 'bridge-client.mjs', 'browser-pointer.mjs', 'bridge-server.mjs', 'scripts/browser-setup.mjs', 'scripts/bridge-daemon.mjs', 'plugin.json', 'mcp.json', '.mcp.json', 'scripts/build-native.mjs'];
   for (const folder of ['skills', 'commands', 'assets', 'adapters', 'browser-extension', '.claude-plugin', '.codex-plugin', '.zcode-plugin']) for (const file of await filesUnder(join(sourceRoot, folder))) files.push(join(folder, file));
-  files.push('dist/AgentMouse.exe', 'dist/AgentMouse.Cli.exe');
+  files.push('dist/AgentMouse.exe', 'dist/AgentMouse.Cli.exe',...(await import('./build-guard.mjs')).guardFiles(sourceRoot),'scripts/build-guard.mjs','THIRD_PARTY_NOTICES.md','licenses/MinHook.LICENSE.txt');
   for (const file of files) {
     const bytes = await readFile(join(sourceRoot, file)); const target = join(runtimeRoot, file);
     if (!(await optionalRead(target))?.equals(bytes)) await atomicWrite(target, bytes);

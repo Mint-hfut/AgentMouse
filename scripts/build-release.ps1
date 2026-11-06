@@ -35,7 +35,9 @@ try {
         $Root = [System.IO.Path]::GetFullPath($Root).TrimEnd('\','/')
         foreach ($file in Get-ChildItem -LiteralPath $Root -Recurse -File) {
             $name = $Prefix + $file.FullName.Substring($Root.Length + 1).Replace('\','/')
+            if ($name.StartsWith('dist/guards/') -and $name -ne ('dist/guards/' + ([IO.File]::ReadAllText((Join-Path $Root 'dist/AgentMouse.Guard.current'))).Trim())) { continue }
             if ($Edition -eq 'core' -and (Is-FusionFile $name)) { continue }
+            if ($Prefix -eq 'python-runtime/' -and $name -match '(__pycache__/|\.pyc$)') { continue }
             if ($name -match '(__pycache__/|\.pyc$|\.egg-info/|\.venv/)') { throw "Generated artifact in release: $name" }
             $entry = $Zip.CreateEntry($name, [System.IO.Compression.CompressionLevel]::Optimal)
             $output = $entry.Open()

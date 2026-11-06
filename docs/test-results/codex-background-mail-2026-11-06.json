@@ -1,0 +1,88 @@
+{
+  "date": "2026-11-06",
+  "status": "passed",
+  "testedVersion": "0.7.0-beta.15",
+  "host": "Codex CLI using the managed installed AgentMouse Full plugin",
+  "task": "Restore an existing application in the background, open its associated mailbox, open and read the first inbox message",
+  "applicationSpecificInputRecipes": false,
+  "legacyAccessibilityQuarantineRetained": true,
+  "restore": [
+    {
+      "method": "verified-application-tray",
+      "foregroundUnchanged": true,
+      "keyboardFocusUnchanged": true,
+      "activationProtection": {
+        "activationBlocks": 2,
+        "focusBlocks": 1,
+        "positionBlocks": 2,
+        "virtualPointerQueries": 0
+      }
+    }
+  ],
+  "clicks": [
+    {
+      "foregroundUnchanged": true,
+      "keyboardFocusUnchanged": true,
+      "physicalPointerUnchanged": true,
+      "buttonReleased": true,
+      "activationProtection": {
+        "activationBlocks": 3,
+        "focusBlocks": 3,
+        "positionBlocks": 0,
+        "virtualPointerQueries": 39
+      }
+    },
+    {
+      "foregroundUnchanged": true,
+      "keyboardFocusUnchanged": true,
+      "physicalPointerUnchanged": true,
+      "buttonReleased": true,
+      "activationProtection": {
+        "activationBlocks": 1,
+        "focusBlocks": 0,
+        "positionBlocks": 1,
+        "virtualPointerQueries": 62
+      }
+    }
+  ],
+  "firstMailDetailsVerifiedFromFreshImage": true,
+  "parentReviewedScreenshot": true,
+  "paused": true,
+  "humanClickHealthAfterFinalRun": null,
+  "followup": {
+    "testedVersion": "0.7.0-beta.16",
+    "host": "Codex CLI using the managed installed AgentMouse Full plugin",
+    "status": "blocked-authentication",
+    "observation": "The application displayed a signed-out notice, followed by its login page",
+    "endToEndTaskCompleted": false,
+    "singleNoticeClick": {
+      "foregroundUnchanged": true,
+      "keyboardFocusUnchanged": true,
+      "physicalPointerUnchanged": true,
+      "buttonReleased": true,
+      "activationProtection": {
+        "activationBlocks": 1,
+        "focusBlocks": 1,
+        "positionBlocks": 1,
+        "virtualPointerQueries": 49
+      }
+    },
+    "parentReviewedLoginScreenshot": true,
+    "paused": true,
+    "backgroundButtonHeld": false
+  },
+  "privacy": "Mail contents, account identifiers, raw logs and screenshots are excluded",
+  "scope": [
+    "Existing authenticated application session",
+    "Mailbox window reused",
+    "Generic window/process relationships and observed tray registration",
+    "Installed MCP entry points"
+  ],
+  "limits": [
+    "The renderer had previously been exposed by the user during capture diagnosis; never-exposed cold rendering is not established",
+    "No actual keyboard events generated",
+    "Native x64 interactive desktop",
+    "Unsupported or ambiguous application capabilities return errors",
+    "No all-application compatibility claim"
+  ]
+}

@@ -15,6 +15,7 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci --ignore-scripts
+      - run: '"AGENTMOUSE_GCC=$(./scripts/get-guard-compiler.ps1)" >> $env:GITHUB_ENV'
       - run: npm run build
       - run: npm test
       - run: npm run test:state

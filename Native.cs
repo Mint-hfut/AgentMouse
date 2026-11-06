@@ -66,7 +66,8 @@ internal static class Native {
     [DllImport("user32.dll")] internal static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] internal static extern IntPtr GetWindow(IntPtr window,uint command);
     // Keep pointer observations in physical pixels even across callers with different DPI contexts.
-    [DllImport("user32.dll",EntryPoint="GetPhysicalCursorPos")] internal static extern bool GetCursorPos(out Point point);
+    [DllImport("user32.dll",EntryPoint="GetPhysicalCursorPos")] private static extern bool ReadPhysicalCursor(out Point point);
+    internal static bool GetCursorPos(out Point point){return ActivationGuard.TryReadSystemPointer(out point)||ReadPhysicalCursor(out point);}
     [DllImport("user32.dll",SetLastError=true)] internal static extern bool SetWindowPos(IntPtr window,IntPtr after,int x,int y,int width,int height,uint flags);
     [DllImport("user32.dll")] internal static extern short GetAsyncKeyState(int key);
     [DllImport("user32.dll",CharSet=CharSet.Unicode,SetLastError=true)]
