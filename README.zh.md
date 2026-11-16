@@ -1,5 +1,7 @@
 # AgentMouse
 
+[Code signing policy（代码签名政策）](docs/code-signing-policy.md) · [隐私说明](docs/privacy-policy.md)。正在准备 SignPath Foundation 申请，当前发行文件尚未签名。
+
 **0.7.0-beta.19 已通过本机 Codex 端到端验收。** 2026-11-16，Codex 通过已安装的 Full 插件，在后台恢复微信、打开关联邮箱并读取收件箱首封邮件。恢复和三次点击的回执中，前台与键盘焦点保持不变。Agent 指针不可见，用户随后确认微信和邮箱均可正常手动点击。记录已脱敏。[Codex 验收记录](docs/test-results/codex-background-mail-2026-11-16.json)
 
 独立 WinForms、Qt 窗口同时覆盖了实际按钮事件、后台滚动、隐藏/最小化恢复和输入保护。兼容范围以实测能力为准。历史故障记录与无障碍提供方隔离仍保留。[兼容性与限制](docs/compatibility.md)

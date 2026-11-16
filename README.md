@@ -1,5 +1,7 @@
 # AgentMouse
 
+[Code signing policy](docs/code-signing-policy.md) · [Privacy policy](docs/privacy-policy.md). The SignPath Foundation application is being prepared. Current binaries are unsigned.
+
 **0.7.0-beta.19 passed a local Codex end-to-end run on November 16, 2026.** The installed Full plugin restored WeChat in the background, opened its associated mailbox, and read the first inbox message. Restore and three click receipts preserved foreground and keyboard focus. The Agent pointer stayed invisible, and the user subsequently confirmed normal physical clicks in both applications. Private mail contents are excluded. [Codex acceptance](docs/test-results/codex-background-mail-2026-11-16.json)
 
 The current build is `0.7.0-beta.19`. A mini status window sits at the primary display's bottom-right corner, with an invisible Agent pointer. Its Stop button cancels input, releases held buttons, and closes the controller. Authorized tasks enable input through MCP.
