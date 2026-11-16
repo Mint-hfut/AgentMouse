@@ -2,7 +2,7 @@
 
 ## Current status
 
-AgentMouse is preparing an application to SignPath Foundation for open-source code signing. The application has not been approved and the current releases are unsigned.
+AgentMouse submitted its application to SignPath Foundation on November 16, 2026. The application website acknowledged receipt with "Form submitted" and "Thank you, we'll be in touch soon." Approval and signing configuration are pending. Current releases remain unsigned.
 
 The proposed service is free code signing provided by [SignPath.io](https://about.signpath.io), with a certificate issued to [SignPath Foundation](https://signpath.org). This describes the requested arrangement and becomes effective only after approval and configuration. A digital signature establishes publisher identity and file integrity. Antivirus detections require their own review.
 
