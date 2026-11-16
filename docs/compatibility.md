@@ -4,8 +4,11 @@ AgentMouse has two input routes. Native Windows capture/messages provide desktop
 
 ## Current acceptance status
 
+`0.7.0-beta.18` replaces the full panel with a non-activating mini status window and an invisible Agent pointer. Actual stop-button and window-close tests interrupt a held press, confirm release at the owned target, and close the controller. [Mini-controller evidence](test-results/mini-controller-2026-11-16.json)
+
 | Check | Evidence | Limit |
 |---|---|---|
+| Installed Codex Full beta.19, November 16 | Background application restore, mailbox entry and first-message reading completed. Endpoint foreground/focus and release receipts passed. User confirmed normal physical clicks afterward | Existing authenticated session and mailbox process. Existing mailbox HWND reuse was not established. [Sanitized acceptance](test-results/codex-background-mail-2026-11-16.json) |
 | Installed Codex Full beta.15 | Completed application-owned background restore, associated mailbox navigation and first-message reading | Existing authenticated, previously exposed renderer. [Sanitized acceptance](test-results/codex-background-mail-2026-11-06.json) |
 | Installed Codex Full beta.16 | Background notice click preserved foreground, keyboard focus and pointer. Controller paused with button released | Workflow rerun blocked by application sign-out. Full mailbox chain remains unverified for this build |
 | Installed Codex Full beta.17 | Real Qt button callback and scrollbar change through model-selected MCP tools, fresh images and unchanged foreground/focus/pointer receipts | Owned fixture. [Sanitized acceptance](test-results/codex-owned-fixture-2026-11-06.json) |

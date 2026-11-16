@@ -41,6 +41,8 @@ AgentMouse Core、后台浏览器通道、目标与观察保护、跨智能体�
 完整验证范围见 [compatibility.md](compatibility.md)，Full 用法见 [fusion.md](fusion.md)。真实第三方 CAPTCHA、独立键盘和从未呈现到前台的冷渲染器仍待验收。
 
 原生截图由同目录 CLI 的短生命周期进程执行；PNG 返回前关闭捕获资源。父控制器只保留图像散列和观察信息，不保留 GPU 捕获帧。暂停/超时直接结束自己启动的截图进程。Core 与 Full 共用同一实现，无需额外运行时或包内可执行文件。
+
+`Ui.cs` 仅提供右下角迷你状态窗和手动终止入口。Agent 坐标保持在引擎中，`pointer.visible=false`，`overlayBounds=null`。手动终止或关闭窗口先取消输入，再通过现有传输层退出流程释放按键并结束控制进程。MCP 暂停保留已暂停的控制器供后续授权任务使用。
 # 前台、键盘焦点和层级诊断
 
 ## 通用原生输入与窗口恢复

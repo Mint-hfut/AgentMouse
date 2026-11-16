@@ -27,7 +27,7 @@ export function browserRouter(nativeCall) {
         browserObservations.delete(request.observationId);
         return { ok: true, result: await browserCall({ ...request, tabId }) };
       }
-      if (request.method === 'move' && request.observationId) return { ok: false, error: { code: 'unsupported', message: 'Window-message hover is not supported. Use a browser: observation or move the overlay without observationId.' } };
+      if (request.method === 'move' && request.observationId) return { ok: false, error: { code: 'unsupported', message: 'Window-message hover is not supported. Use a browser: observation or update logical Agent coordinates without observationId.' } };
       if (request.method === 'pause') {
         const native = nativeCall(request);
         let browserError;

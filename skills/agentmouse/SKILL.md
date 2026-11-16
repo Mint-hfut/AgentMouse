@@ -47,7 +47,7 @@ Window inventory lists `foreground`, `visible`, `minimized`, `cloaked`, `canCapt
 
 Use `pointer_inspect_window(windowId)` to read accessible control names/roles and bounds. It never activates, invokes or types. Custom-rendered apps may expose only a title bar; do not invent missing controls. This provides Windows-MCP-style semantic context alongside real images, without enabling its foreground mouse/keyboard tools.
 
-Every click/drag/scroll must declare the intended `windowId` as well as the matching observation token. Verify returned recipient PID/class/ID and then inspect a fresh image. The orange overlay appears above other windows; its visual location does not prove which app received an event.
+Every click/drag/scroll must declare the intended `windowId` as well as the matching observation token. Verify returned recipient PID/class/ID and then inspect a fresh image. The Agent pointer is invisible. Confirm the receiver from window identity, input receipts and fresh images.
 
 ## Coordinates and gestures
 
@@ -63,7 +63,7 @@ Round to integers. A fresh `observationId` is single-use and expires after 15 se
 - `pointer_click`: left/right; `clickCount=2` double-click or `holdMs` long press, not both.
 - `pointer_drag`: press/move/release within a window/page. `path` contains optional intermediate coordinate points; `durationMs` is bounded. Browser HTML5 drags are intercepted so they do not enter an OS drag loop.
 - `pointer_scroll`: browser and protected Qt vertical wheel. Other native targets require captured scrollbar/page controls until their routing is verified.
-- `pointer_move`: without an observation, only moves the Agent overlay. With a browser observation, moves/hovers the browser virtual pointer. Native persistent hover is unsupported.
+- `pointer_move`: without an observation, only updates invisible Agent coordinates. With a browser observation, moves/hovers the browser virtual pointer. Native persistent hover is unsupported.
 
 ## Verify outcomes
 
@@ -75,6 +75,8 @@ There is no independent keyboard tool. Do not use foreground keyboard/mouse inje
 
 ## Finish and stop
 
-Call `pointer_pause` after this task's input or capture work, on interruption, and whenever the user asks to stop. It releases held buttons/captures and hides the overlay. Status/list-only probes need not pause someone else's work. Focus/z-order interference and an unconfirmed release must stop further input; inspect before continuing.
+The controller uses an invisible Agent pointer and a mini status window at the primary display's bottom-right corner. Its manual Stop button stops input and closes the controller. If the user stops or closes it, end the current task and do not reopen it without a new user request. The MCP pause tool keeps the controller available in a paused state.
+
+Call `pointer_pause` after this task's input or capture work, on interruption, and whenever the user asks to stop. It releases held buttons/captures and leaves the Agent pointer invisible. Status/list-only probes need not pause someone else's work. Focus/z-order interference and an unconfirmed release must stop further input; inspect before continuing.
 
 Use one paired browser profile and one controlling agent session at a time. Graceful disconnect and browser watchdogs attempt cleanup; forced termination of all processes is not a guaranteed release mechanism. The bundle also provides start/status/stop/doctor skills and the `agentmouse.mjs` CLI.

@@ -46,7 +46,7 @@ try {
   if (options.browser && !['extension', 'none'].includes(options.browser)) throw new Error('--browser must be extension or none.');
   if (!options.dryRun && (!existsSync(join(root, 'dist/AgentMouse.exe')) || !existsSync(join(root, 'dist/AgentMouse.Cli.exe')))) (await import('./scripts/build-native.mjs')).buildNative(root);
   const home = options.home ? resolve(options.home) : homedir();
-  let runtimeRoot = resolve(options['install-dir'] || join(options.home ? home : (process.env.LOCALAPPDATA || join(home, 'AppData/Local')), 'AgentMouse/0.7.0-beta.17' + (engine === 'fusion' ? '-fusion' : '')));
+  let runtimeRoot = resolve(options['install-dir'] || join(options.home ? home : (process.env.LOCALAPPDATA || join(home, 'AppData/Local')), 'AgentMouse/0.7.0-beta.19' + (engine === 'fusion' ? '-fusion' : '')));
   // Keep an existing managed marketplace stable while a previous DLL is resident.
   if(!options['install-dir']&&options.mode!=='mcp'&&agents.includes('codex')){
     const {parse}=await import('smol-toml');

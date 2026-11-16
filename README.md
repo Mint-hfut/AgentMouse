@@ -1,10 +1,10 @@
 # AgentMouse
 
-**0.7.0-beta.15 passed a local Codex end-to-end run.** The managed Full plugin restored a minimized application in the background, opened its associated mailbox, and read the first message. Restore and click receipts preserved foreground and keyboard focus. The input engine kept the physical pointer independent. Routing uses window identity, process ancestry, UI threads, and observed tray registration. The acceptance record excludes private mail contents. [Codex acceptance](docs/test-results/codex-background-mail-2026-11-06.json)
+**0.7.0-beta.19 passed a local Codex end-to-end run on November 16, 2026.** The installed Full plugin restored WeChat in the background, opened its associated mailbox, and read the first inbox message. Restore and three click receipts preserved foreground and keyboard focus. The Agent pointer stayed invisible, and the user subsequently confirmed normal physical clicks in both applications. Private mail contents are excluded. [Codex acceptance](docs/test-results/codex-background-mail-2026-11-16.json)
 
-The current build is `0.7.0-beta.17`, installed in local Codex. It adds random protection-lease identities to separate delayed cleanup from later operations, and tracks tray protocol negotiation and deletion. Its final workflow rerun stopped at an application login page after the session signed out. The completed mail-workflow evidence remains scoped to beta.15.
+The current build is `0.7.0-beta.19`. A mini status window sits at the primary display's bottom-right corner, with an invisible Agent pointer. Its Stop button cancels input, releases held buttons, and closes the controller. Authorized tasks enable input through MCP.
 
-Codex also exercised the installed beta.17 plugin against a disposable Qt window. A real button callback and scrollbar change passed with fresh images and unchanged foreground, keyboard focus and physical pointer receipts. [Current-build Codex test](docs/test-results/codex-owned-fixture-2026-11-06.json)
+Codex also exercised the installed beta.17 plugin against a disposable Qt window. A real button callback and scrollbar change passed with fresh images and unchanged foreground, keyboard focus and physical pointer receipts. [beta.17 Codex test](docs/test-results/codex-owned-fixture-2026-11-06.json)
 
 Separate WinForms and Qt fixtures cover actual button events, scrolling, lifecycle restoration, and input protection. Compatibility follows tested capabilities. Historical incidents and accessibility-provider containment remain documented. [Compatibility](docs/compatibility.md)
 
@@ -90,11 +90,11 @@ The following 11-tool reference is for native-only mode. Fusion tool names and t
 | `pointer_list_apps` | Running processes by app name, including tray/hidden apps |
 | `pointer_inspect_window` | Read-only accessibility control names, roles and bounds for one HWND |
 | `pointer_observe` | Desktop image, native window surface, or real browser viewport image |
-| `pointer_move` | Overlay only by default; with a browser observation, move/hover its virtual pointer |
+| `pointer_move` | Logical coordinates only by default; with a browser observation, move/hover its virtual pointer |
 | `pointer_click` | Left/right click; `clickCount=2` double click or `holdMs` long press |
 | `pointer_drag` | Press/move/release with optional intermediate `path` and bounded duration |
 | `pointer_scroll` | Browser wheel; native covered-window wheels are rejected, use scrollbar clicks |
-| `pointer_pause` | Stop input, release held buttons/captures and hide the overlay |
+| `pointer_pause` | Pause input and release held buttons/captures |
 
 There is no permanent target binding. Every click/drag/scroll explicitly supplies the intended `windowId` and its fresh observation token; mismatches are rejected. Supplying a window ID defaults to real window capture, never a crop of the covering foreground app. A desktop overview has no fixed target; any input still needs an explicit intended window ID. Reobserve another target to switch apps/tabs.
 

@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
-const mode=process.argv.includes('--routing')?'--routing-self-test':process.argv.includes('--message-failures')?'--message-failure-self-test':'--state-self-test';
+const mode=process.argv.includes('--routing')?'--routing-self-test':process.argv.includes('--message-failures')?'--message-failure-self-test':process.argv.includes('--mini-controller')?'--mini-controller-self-test':'--state-self-test';
 execFileSync(fileURLToPath(new URL('../dist/AgentMouse.Cli.exe', import.meta.url)), [mode], { stdio: 'inherit', windowsHide: true, timeout: 30000 });
 if (mode==='--state-self-test') {
   const query = request => JSON.parse(execFileSync(fileURLToPath(new URL('../dist/AgentMouse.Cli.exe', import.meta.url)), ['--desktop-query', JSON.stringify(request)], { encoding: 'utf8', windowsHide: true, timeout: 15000, maxBuffer: 4 * 1024 * 1024 }));

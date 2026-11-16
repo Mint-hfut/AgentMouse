@@ -105,6 +105,89 @@ internal static class SelfTest {
             base.WndProc(ref m);
         }
     }
+    [StructLayout(LayoutKind.Sequential)] private struct LastInputInfo {internal uint Size,Time;}
+    [DllImport("user32.dll")] private static extern bool GetLastInputInfo(ref LastInputInfo input);
+    internal static int MiniController(){
+        Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);
+        PracticeForm target=null;ReleaseProbe probe=null;
+        var targetReady=new ManualResetEventSlim();Exception startup=null;
+        var targetThread=new Thread(delegate(){
+            try{
+                target=new PracticeForm(new Engine()){NoActivate=true,ShowInTaskbar=false,Text="AgentMouse stop-release fixture"};
+                probe=new ReleaseProbe{Bounds=new Rectangle(20,220,180,50)};target.Controls.Add(probe);
+                target.Shown+=delegate{Native.SetWindowPos(target.Handle,new IntPtr(1),0,0,0,0,0x13);targetReady.Set();};
+                Application.Run(target);
+            }catch(Exception error){startup=error;targetReady.Set();}
+        });
+        targetThread.IsBackground=true;targetThread.SetApartmentState(ApartmentState.STA);targetThread.Start();
+        if(!targetReady.Wait(7000)||startup!=null)throw new Exception("Stop fixture startup failed",startup);
+        var foreground=DesktopInventory.ReadForegroundInput();Native.Point before,after;Native.GetCursorPos(out before);
+        var input=new LastInputInfo{Size=8};Assert(GetLastInputInfo(ref input),"Cannot sample desktop input before the UI test");uint inputBefore=input.Time;
+        try{
+            foreach(bool useButton in new[]{true,false}){
+                string pipe="agentmouse-background-"+Guid.NewGuid();
+                MainForm controller=null;var ready=new ManualResetEventSlim();startup=null;
+                var controllerThread=new Thread(delegate(){
+                    try{controller=new MainForm(pipe);controller.Shown+=delegate{ready.Set();};Application.Run(controller);}
+                    catch(Exception error){startup=error;ready.Set();}
+                });
+                controllerThread.IsBackground=true;controllerThread.SetApartmentState(ApartmentState.STA);controllerThread.Start();
+                if(!ready.Wait(7000)||startup!=null)throw new Exception("Mini controller startup failed",startup);
+                try{
+                    controller.Invoke((Action)delegate{
+                        var area=Screen.PrimaryScreen.WorkingArea;
+                        Assert(area.Contains(controller.Bounds),"Mini window is outside the work area");
+                        Assert(controller.Right==area.Right-12&&controller.Bottom==area.Bottom-12,"Mini window is not in the bottom-right corner");
+                        Assert(controller.ClientSize.Width<=500&&controller.ClientSize.Height<=120,"Controller is not a mini window");
+                        Assert(!controller.ShowInTaskbar&&controller.TopMost,"Mini window must remain reachable without a taskbar panel");
+                        Assert(controller.Controls.Count==1&&controller.Controls[0].Controls.Count==2,"Settings panel controls remain visible");
+                        controller.Scale(new SizeF(1.5f,1.5f));
+                        controller.PerformLayout();controller.Controls[0].PerformLayout();
+                        foreach(Control child in controller.Controls[0].Controls)
+                            Assert(child.Parent.ClientRectangle.Contains(child.Bounds),"Scaled mini controls are clipped: "+child.GetType().Name+" "+child.Bounds+" parent "+child.Parent.ClientRectangle);
+                    });
+                    UIntPtr activation;
+                    Assert(Native.SendMessageTimeout(controller.Handle,0x21,UIntPtr.Zero,IntPtr.Zero,2,500,out activation)!=IntPtr.Zero&&activation.ToUInt64()==3,"Mini mouse activation should preserve the user's foreground");
+                    var enabled=Json.Read(Transport.Call(pipe,"{\"method\":\"enable\"}"));
+                    var enabledState=Obj(enabled["result"]);
+                    Assert((bool)enabledState["armed"]&&!(bool)Obj(enabledState["pointer"])["visible"]&&enabledState["overlayBounds"]==null,"Enabled controller created a visible Agent pointer");
+                    var engine=(Engine)typeof(MainForm).GetField("engine",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(controller);
+                    engine.FixtureWindow=target.Handle;
+                    Native.Rect bounds;Native.GetWindowRect(target.Handle,out bounds);uint pid;Native.GetWindowThreadProcessId(target.Handle,out pid);
+                    var desktop=SystemInformation.VirtualScreen;
+                    var observation=new Observation{Token=Guid.NewGuid().ToString("N"),At=InputTracker.Now,Bounds=new Native.Rect{Left=desktop.Left,Top=desktop.Top,Right=desktop.Right,Bottom=desktop.Bottom},Target=new ObservedWindow{Handle=target.Handle,Pid=pid,Bounds=bounds,Explicit=true},FrameTimestamp=1};
+                    typeof(Engine).GetField("observation",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).SetValue(engine,observation);
+                    probe.Pressed.Reset();probe.Released.Reset();
+                    var point=new Native.Point(80,25);Native.ClientToScreen(probe.Handle,ref point);
+                    var request=new Dictionary<string,object>{{"method","click"},{"windowId",target.Handle.ToInt64().ToString()},{"observationId",observation.Token},{"x",point.X},{"y",point.Y},{"holdMs",2000}};
+                    var action=Task.Run(()=>Transport.Call(pipe,Json.Write(request)));
+                    if(!probe.Pressed.Wait(5000)){if(action.IsCompleted)action.GetAwaiter().GetResult();throw new Exception("Stop fixture never received DOWN");}
+                    controller.Invoke((Action)delegate{
+                        if(useButton)((Button)controller.Controls[0].Controls[1]).PerformClick();else controller.Close();
+                    });
+                    Assert(controllerThread.Join(4000)&&controller.IsDisposed,"Terminated mini window remained open");
+                    Assert(probe.Released.Wait(4000)&&!engine.Armed&&engine.Stopped&&!engine.MessageButtonHeld,"Terminating the mini window did not release active input");
+                    target.Invoke((Action)delegate{Assert(!probe.Capture,"Target retained mouse capture after mini-window termination");});
+                    try{action.GetAwaiter().GetResult();}catch(IOException){}catch(ObjectDisposedException){}catch(Fault){}
+                }finally{
+                    if(controller!=null&&!controller.IsDisposed)controller.Invoke((Action)delegate{controller.Close();});
+                    controllerThread.Join(4000);
+                }
+            }
+            Native.GetCursorPos(out after);
+            Assert(GetLastInputInfo(ref input),"Cannot sample desktop input after the UI test");
+            bool desktopStable=input.Time==inputBefore;
+            if(desktopStable){
+                Assert(Native.GetForegroundWindow()==foreground.Window&&DesktopInventory.KeyboardFocusChanged(foreground,DesktopInventory.ReadForegroundInput())!=true,"Mini window changed foreground or keyboard focus");
+                Assert(before.X==after.X&&before.Y==after.Y,"Mini window moved the real mouse without external input");
+            }
+            Console.WriteLine("PASS mini controller: bottom-right bounds, no-activation style, scaled controls, invisible Agent pointer, stop button and window close both release an active press and close the controller; desktop stability assertions="+desktopStable+" (external input requires a separate stability run); owned fixtures only.");
+            return 0;
+        }finally{
+            if(target!=null&&!target.IsDisposed)target.Invoke((Action)delegate{target.Close();});
+            targetThread.Join(4000);
+        }
+    }
     internal static int MessageFailures(){
         PracticeForm form=null;ReleaseProbe probe=null;var ready=new ManualResetEventSlim();Exception startup=null;
         IntPtr foreground=Native.GetForegroundWindow();Native.Point before,after;Native.GetCursorPos(out before);
@@ -213,12 +296,10 @@ internal static class SelfTest {
         focusB.Focus=focusA.Focus;Assert(DesktopInventory.KeyboardFocusChanged(focusA,focusB)==false,"Same known keyboard focus must remain unchanged");
         focusB.Known=false;Assert(DesktopInventory.KeyboardFocusChanged(focusA,focusB)==null,"Unknown focus must not be reported as no change");
         var e=new Engine();
-        Assert(!e.ShowPointer,"Paused startup must hide the overlay");
-        e.Armed=true;Assert(e.ShowPointer,"Enabled input must show the requested overlay");
-        e.Pause("state check");Assert(!e.ShowPointer,"Pause must hide the overlay");
-        e.Armed=true;e.PointerVisible=false;Assert(!e.ShowPointer,"Display preference must stay effective");
-        e.PointerVisible=true;e.Stopped=true;Assert(!e.ShowPointer,"Stopped input must hide the overlay");
-        var status=Obj(e.Status());Assert(!(bool)Obj(status["pointer"])["visible"],"Status must agree with overlay state");
+        var status=Obj(e.Status());Assert(!(bool)Obj(status["pointer"])["visible"]&&status["overlayBounds"]==null,"Transparent startup must have no rendered pointer");
+        e.Armed=true;Assert(!(bool)Obj(Obj(e.Status())["pointer"])["visible"],"Enabled input must keep the Agent pointer transparent");
+        e.Pause("state check");Assert(!e.Armed,"Pause must disable input");
+        e.Armed=true;e.Stopped=true;Assert(!(bool)Obj(Obj(e.Status())["pointer"])["visible"],"Stopped input must remain transparent");
         Assert(!Engine.FrameAdvanced(10,100,"new",Tuple.Create(10u,100L,"old")),"Repeated post-action timestamp must block input");
         Assert(!Engine.FrameAdvanced(10,99,"new",Tuple.Create(10u,100L,"old")),"Older post-action frame must block input");
         Assert(!Engine.FrameAdvanced(10,101,"old",Tuple.Create(10u,100L,"old")),"New capture timestamps with identical pixels must block repeat input");

@@ -16,6 +16,7 @@ internal static class Program {
             if(args.Length>0&&args[0]=="--state-self-test")return SelfTest.StateOnly();
             if(args.Length==1&&args[0]=="--routing-self-test")return SelfTest.Routing();
             if(args.Length==1&&args[0]=="--message-failure-self-test")return SelfTest.MessageFailures();
+            if(args.Length==1&&args[0]=="--mini-controller-self-test")return SelfTest.MiniController();
             if(args.Length==2&&args[0]=="--fusion-native-fixture")return SelfTest.FusionFixture(args[1]);
             if(args.Length==1&&args[0]=="--foreground-state")return SelfTest.ForegroundState();
             if(args.Length==3&&args[0]=="--image-color-point")return SelfTest.ImagePoint(args[1],args[2]);

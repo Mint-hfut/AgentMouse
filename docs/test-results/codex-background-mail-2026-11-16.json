@@ -1,0 +1,83 @@
+{
+  "date": "2026-11-16",
+  "status": "passed",
+  "testedVersion": "0.7.0-beta.19",
+  "host": "Codex CLI 0.167.0-alpha.4.1 using the managed installed AgentMouse Full plugin",
+  "task": "Restore the running application in the background, open its associated mailbox and read the first inbox message",
+  "agentPointerInvisible": true,
+  "miniControllerInstalled": true,
+  "restores": [
+    {
+      "method": "verified-application-tray",
+      "foregroundUnchanged": true,
+      "keyboardFocusUnchanged": true,
+      "activationProtection": {
+        "activationBlocks": 3,
+        "focusBlocks": 1,
+        "positionBlocks": 2,
+        "virtualPointerQueries": 0
+      }
+    }
+  ],
+  "clicks": [
+    {
+      "foregroundUnchanged": true,
+      "keyboardFocusUnchanged": true,
+      "noUnattributedPhysicalPointerMovement": true,
+      "externalInputDuringAction": false,
+      "buttonReleased": true,
+      "activationProtection": {
+        "activationBlocks": 23,
+        "focusBlocks": 23,
+        "positionBlocks": 0,
+        "virtualPointerQueries": 81
+      }
+    },
+    {
+      "foregroundUnchanged": true,
+      "keyboardFocusUnchanged": true,
+      "noUnattributedPhysicalPointerMovement": true,
+      "externalInputDuringAction": false,
+      "buttonReleased": true,
+      "activationProtection": {
+        "activationBlocks": 0,
+        "focusBlocks": 0,
+        "positionBlocks": 0,
+        "virtualPointerQueries": 38
+      }
+    },
+    {
+      "foregroundUnchanged": true,
+      "keyboardFocusUnchanged": true,
+      "noUnattributedPhysicalPointerMovement": true,
+      "externalInputDuringAction": true,
+      "buttonReleased": true,
+      "activationProtection": {
+        "activationBlocks": 1,
+        "focusBlocks": 0,
+        "positionBlocks": 1,
+        "virtualPointerQueries": 63
+      }
+    }
+  ],
+  "firstInboxRowAndMessageDetailsVerifiedFromFreshImages": true,
+  "parentReviewedScreenshots": true,
+  "existingMailboxProcessUsed": true,
+  "existingMailboxWindowReuseVerified": false,
+  "openedMessageMarkedRead": true,
+  "paused": true,
+  "humanVerification": {
+    "source": "Explicit user confirmation after this run",
+    "wechatPhysicalClicksNormal": true,
+    "mailboxPhysicalClicksNormal": true
+  },
+  "privacy": "Account identifiers, message sender, subject, body, raw logs and screenshots are excluded",
+  "limits": [
+    "Existing authenticated application session",
+    "The mailbox HWND was not listed before the mailbox-entry click; reuse is established only for the existing process",
+    "Concurrent desktop input was observed during the final click",
+    "Foreground and keyboard focus checks compare endpoint samples",
+    "No actual keyboard-input delivery test",
+    "No universal application, cold-renderer or long-duration stability claim"
+  ]
+}

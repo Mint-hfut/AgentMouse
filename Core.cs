@@ -154,18 +154,16 @@ internal sealed class Engine {
     private readonly Dictionary<IntPtr,string> actionWindows=new Dictionary<IntPtr,string>();
     private readonly Dictionary<IntPtr,Tuple<uint,string>> captureHashes=new Dictionary<IntPtr,Tuple<uint,string>>();
     private Task<object> windowCapture;
-    internal volatile bool Armed,Stopped,PointerVisible=true;
+    internal volatile bool Armed,Stopped;
     internal volatile bool InputMonitoringReady;
     internal volatile bool MessageButtonHeld;
     internal volatile string Mode="background";
-    internal volatile string Message="已暂停。点击允许全桌面操作即可启用。";
+    internal volatile string Message="已暂停，等待 Agent 按本次任务授权启用。";
     internal volatile string PauseShortcut="尚未注册";
     internal volatile int X,Y;
     private int cancelGeneration;
     internal IntPtr Owner;
-    internal IntPtr OverlayWindow;
     internal IntPtr FixtureWindow;
-    internal bool ShowPointer {get{return Armed&&PointerVisible&&!Stopped;}}
     internal void Enable(){
         if(Stopped||!InputMonitoringReady)throw new Fault("input_monitor_unavailable","输入监测尚未就绪，不能启用操作。");
         if(WindowCapture.HelperActive)throw new Fault("capture_busy","截图进程仍在运行，不能重新启用输入。");
@@ -187,10 +185,9 @@ internal sealed class Engine {
         },IntPtr.Zero);return items;
     }
     internal object Status(){
-        Native.Point real;bool available=Native.GetCursorPos(out real);Native.Rect bounds;object shown=null;
-        if(OverlayWindow!=IntPtr.Zero&&Native.GetWindowRect(OverlayWindow,out bounds))shown=new{x=bounds.Left,y=bounds.Top,width=bounds.Width,height=bounds.Height};
-        return new{controllerVersion="0.7.0-beta.17",activationGuard=ActivationGuard.Available,captureSettleMilliseconds=WindowCapture.SettleMilliseconds,backgroundWindowCapture=true,isolatedWindowCapture=true,windowIdentityGuard=true,targetQuarantine=true,postActionFrameGuard=true,windowMessageGestures=true,foregroundWindowId=Native.GetForegroundWindow().ToInt64().ToString(),windowZOrder=CaptureWindows().ConvertAll<string>(w=>w.Handle.ToInt64().ToString()),humanInputSequence=Human.Sequence,backgroundButtonHeld=MessageButtonHeld,armed=Armed,mode=Mode,scope="desktop",pointer=new{x=X,y=Y,visible=ShowPointer},
-        systemPointer=new{x=real.X,y=real.Y,available=available},overlayBounds=shown,message=Message,pauseShortcut=PauseShortcut,
+        Native.Point real;bool available=Native.GetCursorPos(out real);
+        return new{controllerVersion="0.7.0-beta.19",activationGuard=ActivationGuard.Available,captureSettleMilliseconds=WindowCapture.SettleMilliseconds,backgroundWindowCapture=true,isolatedWindowCapture=true,windowIdentityGuard=true,targetQuarantine=true,postActionFrameGuard=true,windowMessageGestures=true,foregroundWindowId=Native.GetForegroundWindow().ToInt64().ToString(),windowZOrder=CaptureWindows().ConvertAll<string>(w=>w.Handle.ToInt64().ToString()),humanInputSequence=Human.Sequence,backgroundButtonHeld=MessageButtonHeld,armed=Armed,mode=Mode,scope="desktop",pointer=new{x=X,y=Y,visible=false},
+        systemPointer=new{x=real.X,y=real.Y,available=available},overlayBounds=(object)null,message=Message,pauseShortcut=PauseShortcut,
         limitations=new[]{"后台消息点击和拖动的兼容性取决于目标程序；触摸可能影响真实指针和焦点。","不支持独立键盘、跨窗口系统拖放和独立悬停；后台滚轮需改用滚动条点击。","当前同一时刻仅支持一个 Agent 控制会话。","没有 SendInput 或真实鼠标瞬移兜底。"}};}
     internal object Dispatch(Dictionary<string,object> request){
         string method=Json.Text(request,"method","");
@@ -216,7 +213,7 @@ internal sealed class Engine {
     private List<ObservedWindow> CaptureWindows(){
         var list=new List<ObservedWindow>();
         Native.EnumWindows(delegate(IntPtr w,IntPtr unused){
-            if(w==OverlayWindow||!Native.IsWindowVisible(w)||Native.IsIconic(w))return true;
+            if(w==Owner||!Native.IsWindowVisible(w)||Native.IsIconic(w))return true;
             long style=Native.GetWindowLongPtr(w,-20).ToInt64();int cloaked;
             if((style&0x80020)==0x80020||(Native.DwmGetWindowAttribute(w,14,out cloaked,4)==0&&cloaked!=0))return true;
             Native.Rect bounds;if(!Native.GetWindowRect(w,out bounds)||bounds.Width<=0||bounds.Height<=0)return true;

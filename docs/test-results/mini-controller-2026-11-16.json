@@ -1,0 +1,43 @@
+{
+  "date": "2026-11-16",
+  "testedVersion": "0.7.0-beta.19",
+  "status": "passed",
+  "target": "Owned native Windows controller and disposable input target",
+  "miniWindow": {
+    "primaryDisplayBottomRight": true,
+    "withinWorkArea": true,
+    "noTaskbarPanel": true,
+    "noForegroundActivation": true,
+    "onlyStatusAndStopControl": true,
+    "simulated150PercentLayoutFits": true,
+    "previewPhysicalPixels": {
+      "width": 254,
+      "height": 87
+    }
+  },
+  "agentPointer": {
+    "visible": false,
+    "overlayBounds": null
+  },
+  "termination": {
+    "stopButtonDuringHeldPressReleasedTarget": true,
+    "windowCloseDuringHeldPressReleasedTarget": true,
+    "targetCaptureReleased": true,
+    "controllerClosed": true,
+    "physicalPointerUnchanged": true,
+    "foregroundPreservedAndNoKnownKeyboardFocusChange": true
+  },
+  "reproduce": [
+    "npm run build",
+    "npm run test:ui",
+    "npm run test:state",
+    "node test-browser-pointer.mjs"
+  ],
+  "limits": [
+    "Windows UI tests use owned fixtures",
+    "Browser close-release is a mocked transport regression",
+    "150 percent layout uses a controlled WinForms scale operation, not a physical multi-monitor DPI transition",
+    "MCP pause retains a paused controller; manual Stop closes it"
+  ],
+  "desktopStabilityAssertionsPassed": true
+}

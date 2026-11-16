@@ -1,6 +1,6 @@
 {
   "name": "agentmouse",
-  "version": "0.7.0-beta.17",
+  "version": "0.7.0-beta.19",
   "private": true,
   "type": "module",
   "description": "Background computer use for AI agents with an independent pointer, MCP server, Agent Skills, and multi-agent-host installers.",
@@ -69,6 +69,7 @@
     "test:sdk": "node test-sdk.mjs",
     "test:routing": "node scripts/test-native.mjs --routing",
     "test:native:failures": "node scripts/test-native.mjs --message-failures",
+    "test:ui": "node scripts/test-native.mjs --mini-controller",
     "test:fusion": "node scripts/test-fusion.mjs",
     "test:fusion:windows": "node scripts/test-fusion-windows.mjs",
     "test:fusion:qt": "node scripts/test-fusion-windows.mjs --qt"

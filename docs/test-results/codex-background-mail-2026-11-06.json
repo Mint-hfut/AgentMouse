@@ -48,7 +48,7 @@
   "firstMailDetailsVerifiedFromFreshImage": true,
   "parentReviewedScreenshot": true,
   "paused": true,
-  "humanClickHealthAfterFinalRun": null,
+  "humanClickHealthAfterFinalRun": true,
   "followup": {
     "testedVersion": "0.7.0-beta.16",
     "host": "Codex CLI using the managed installed AgentMouse Full plugin",
@@ -84,5 +84,11 @@
     "Native x64 interactive desktop",
     "Unsupported or ambiguous application capabilities return errors",
     "No all-application compatibility claim"
-  ]
+  ],
+  "humanVerification": {
+    "source": "Explicit user confirmation",
+    "wechatPhysicalClicksNormal": true,
+    "mailboxPhysicalClicksNormal": true,
+    "scope": "Confirmation for the completed workflow previously reported to the user"
+  }
 }
